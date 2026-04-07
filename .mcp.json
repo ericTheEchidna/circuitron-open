@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "memex-api": {
+      "type": "stdio",
+      "command": "/home/eric/memex/mcp/memex_api/venv/bin/python",
+      "args": ["/home/eric/memex/mcp/memex_api/memex_mcp.py"],
+      "env": {
+        "MEMEX_API_URL": "http://miso:8002"
+      }
+    }
+  }
+}

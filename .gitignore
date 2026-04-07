@@ -1,4 +1,5 @@
 circuitron_venv/
+.venv/
 .env
 mcp.env
 __pycache__/
