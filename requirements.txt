@@ -5,3 +5,5 @@ httpx>=0.27.0
 prompt_toolkit>=3.0
 rich>=13.0
 logfire>=3.22.0
+# Optional: install for Anthropic provider support (pip install circuitron[anthropic])
+# anthropic>=0.49.0

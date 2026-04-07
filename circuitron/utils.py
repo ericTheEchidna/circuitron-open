@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Callable, List, TYPE_CHECKING, Mapping
+from typing import Any, Callable, List, TYPE_CHECKING, Mapping
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
 import os
 import tempfile
 import re
-from agents.items import ReasoningItem
-from agents.result import RunResult
+from .providers import get_provider
+from .config import settings as _settings
 from .models import (
     PlanOutput,
     UserFeedback,
@@ -68,20 +68,16 @@ def convert_windows_path_for_docker(windows_path: str) -> str:
     return f"/mnt/{drive}/{rest}"
 
 
-def extract_reasoning_summary(run_result: RunResult) -> str:
+def extract_reasoning_summary(run_result: Any) -> str:
     """Return the reasoning summary from a run result.
+
+    Delegates to the active provider so the extraction logic stays
+    provider-specific without leaking SDK types into this module.
 
     Example:
         >>> summary = extract_reasoning_summary(result)
     """
-    texts = []
-    for item in run_result.new_items:
-        if isinstance(item, ReasoningItem):
-            # raw_item.summary is List[ResponseSummaryText]
-            for chunk in item.raw_item.summary:
-                if getattr(chunk, "type", None) == "summary_text":
-                    texts.append(chunk.text)
-    return "\n\n".join(texts).strip() or "(no summary returned)"
+    return get_provider(_settings).extract_reasoning(run_result)
 
 
 def print_section(

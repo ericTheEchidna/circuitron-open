@@ -4,9 +4,9 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from agents.mcp import MCPServer
+from typing import Any
 
-from .tools import create_mcp_server
+from .providers import get_provider
 from .config import settings
 
 
@@ -19,7 +19,10 @@ class MCPManager:
     """
 
     def __init__(self) -> None:
-        self._server = create_mcp_server()
+        self._server = get_provider(settings).make_mcp_server(
+            url=f"{settings.mcp_url}/sse",
+            timeout=settings.network_timeout,
+        )
 
     async def _connect_server_with_timeout(self) -> None:
         """Attempt to connect to the MCP server with retries."""
@@ -52,7 +55,7 @@ class MCPManager:
         except Exception as exc:  # pragma: no cover - cleanup errors
             logging.warning("Error cleaning MCP server %s: %s", self._server.name, exc)
 
-    def get_server(self) -> MCPServer:
+    def get_server(self) -> Any:
         """Return the MCP server instance used by all agents."""
         return self._server
 

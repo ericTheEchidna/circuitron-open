@@ -40,10 +40,12 @@ def setup_environment(dev: bool = False, use_dotenv: bool = False) -> Settings:
     if use_dotenv:
         load_dotenv()
 
-    required = [
-        "OPENAI_API_KEY",
-        "MCP_URL",
-    ]
+    provider = os.getenv("CIRCUITRON_PROVIDER", "openai-agents")
+    required = ["MCP_URL"]
+    if provider == "anthropic":
+        required.append("ANTHROPIC_API_KEY")
+    else:
+        required.append("OPENAI_API_KEY")
     missing = [var for var in required if not os.getenv(var)]
     if missing:
         msg = ", ".join(missing)
@@ -51,11 +53,13 @@ def setup_environment(dev: bool = False, use_dotenv: bool = False) -> Settings:
     _check_mcp_health(os.getenv("MCP_URL", settings.mcp_url))
     # Always configure logfire tracing (required dependency)
     try:
+        from .providers import get_provider
+
         logfire = importlib.import_module("logfire")
         # Default configuration; environment variables can refine it
         logfire.configure()
-        # Instrument OpenAI Agents SDK traces
-        logfire.instrument_openai_agents()
+        # Instrument the active provider's SDK for traces
+        get_provider(settings).configure_tracing()
         # Attach our token usage span processor if possible (no user-visible change)
         try:
             from .telemetry import attach_span_processor_if_possible

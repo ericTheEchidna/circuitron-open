@@ -6,42 +6,26 @@ from typing import Any
 
 import asyncio
 import httpx
-import openai
-from agents.exceptions import InputGuardrailTripwireTriggered
 
-from agents import Runner
-from agents.items import MessageOutputItem, ToolCallOutputItem
-from agents.result import RunResult
-
+from .providers import get_provider
 from .config import settings
 from .telemetry import record_from_run_result
 from .network import is_connected
 from .exceptions import PipelineError
 
+_provider = get_provider(settings)
 
-def display_run_items(result: RunResult) -> None:
+
+def display_run_items(result: Any) -> None:
     """Print all new items from an agent run.
 
     Args:
-        result: The :class:`RunResult` from ``Runner.run``.
+        result: The run result from the active provider.
     """
-    for item in result.new_items:
-        agent_name = getattr(item.agent, "name", "agent")
-        if isinstance(item, MessageOutputItem):
-            parts = []
-            for part in item.raw_item.content:
-                text = getattr(part, "text", None)
-                if text:
-                    parts.append(text)
-            text = "".join(parts)
-            print(f"[{agent_name}] MESSAGE: {text}")
-        elif isinstance(item, ToolCallOutputItem):
-            print(f"[{agent_name}] TOOL OUTPUT: {item.output}")
-        else:
-            print(f"[{agent_name}] {item.type}")
+    _provider.display_run_items(result)
 
 
-async def run_agent(agent: Any, input_data: Any) -> RunResult:
+async def run_agent(agent: Any, input_data: Any) -> Any:
     """Run an agent and display outputs when in dev mode.
 
     Args:
@@ -52,9 +36,9 @@ async def run_agent(agent: Any, input_data: Any) -> RunResult:
         The :class:`RunResult` from the agent run.
     """
     try:
-        coro = Runner.run(agent, input_data, max_turns=settings.max_turns)
+        coro = _provider.run_agent(agent, input_data, max_turns=settings.max_turns)
         result = await asyncio.wait_for(coro, timeout=settings.network_timeout)
-    except InputGuardrailTripwireTriggered:
+    except _provider.guardrail_tripwire_type():
         message = "Sorry, I can only assist with PCB design questions."
         print(message)
         raise PipelineError(message)
@@ -66,7 +50,7 @@ async def run_agent(agent: Any, input_data: Any) -> RunResult:
         raise PipelineError(
             "Network operation timed out. Consider increasing CIRCUITRON_NETWORK_TIMEOUT."
         )
-    except (httpx.HTTPError, openai.OpenAIError) as exc:
+    except (httpx.HTTPError, _provider.api_error_type()) as exc:
         print(f"Network error: {exc}")
         if not is_connected(timeout=5.0):
             raise PipelineError(
@@ -84,4 +68,4 @@ async def run_agent(agent: Any, input_data: Any) -> RunResult:
         display_run_items(result)
     return result
 
-__all__ = ["display_run_items", "run_agent", "Runner"]
+__all__ = ["display_run_items", "run_agent"]

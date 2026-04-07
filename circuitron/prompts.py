@@ -1,6 +1,10 @@
 """Agent prompts for the Circuitron system."""
 
-from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
+# Provider-neutral replacement for the OpenAI Agents SDK handoff prefix.
+# The sequential Circuitron pipeline does not use agent handoffs, so this
+# is an empty string.  OpenAI-specific boilerplate can be added here if
+# multi-agent handoff support is introduced later.
+RECOMMENDED_PROMPT_PREFIX = ""
 
 # ---------- Planning Agent Prompt ----------
 PLAN_PROMPT = f"""{RECOMMENDED_PROMPT_PREFIX}

@@ -55,6 +55,9 @@ class Settings:
     network_timeout: float = field(
         default_factory=lambda: float(os.getenv("CIRCUITRON_NETWORK_TIMEOUT", "300"))
     )
+    provider: str = field(
+        default_factory=lambda: os.getenv("CIRCUITRON_PROVIDER", "openai-agents")
+    )
     dev_mode: bool = False
     footprint_search_enabled: bool = True
 

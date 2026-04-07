@@ -9,9 +9,10 @@ The system uses a single MCP server connection shared across all agents
 that require documentation and validation capabilities.
 """
 
-from agents import Agent
-from agents.tool import Tool
-from agents.model_settings import ModelSettings
+from typing import Any
+
+from .providers import get_provider
+from .provider import AgentHandle, ModelConfig
 
 from .config import settings
 from .prompts import (
@@ -46,10 +47,21 @@ from .tools import (
     search_kicad_libraries,
     search_kicad_footprints,
     extract_pin_details,
-    run_erc_tool,
-    run_runtime_check_tool,
+    run_erc,
+    run_runtime_check,
     get_kg_usage_guide,
 )
+
+_provider = get_provider(settings)
+
+# Wrap plain callables as SDK tools via the provider.
+_execute_calculation = _provider.wrap_tool(execute_calculation)
+_search_kicad_libraries = _provider.wrap_tool(search_kicad_libraries)
+_search_kicad_footprints = _provider.wrap_tool(search_kicad_footprints)
+_extract_pin_details = _provider.wrap_tool(extract_pin_details)
+_run_erc = _provider.wrap_tool(run_erc)
+_run_runtime_check = _provider.wrap_tool(run_runtime_check)
+_get_kg_usage_guide = _provider.wrap_tool(get_kg_usage_guide)
 from .mcp_manager import mcp_manager
 from .guardrails import pcb_query_guardrail
 
@@ -60,13 +72,13 @@ def _tool_choice_for_mcp(model: str) -> str:
     return "auto" if model == "o4-mini" else "required"
 
 
-def create_planning_agent() -> Agent:
+def create_planning_agent() -> AgentHandle:
     """Create and configure the Planning Agent."""
-    model_settings = ModelSettings(tool_choice="required")
+    model_settings = ModelConfig(tool_choice="required")
 
-    tools: list[Tool] = [execute_calculation]
+    tools: list[Any] =[_execute_calculation]
 
-    return Agent(
+    return _provider.create_agent(
         name="Circuitron-Planner",
         instructions=PLAN_PROMPT,
         model=settings.planning_model,
@@ -77,13 +89,13 @@ def create_planning_agent() -> Agent:
     )
 
 
-def create_plan_edit_agent() -> Agent:
+def create_plan_edit_agent() -> AgentHandle:
     """Create and configure the Plan Edit Agent."""
-    model_settings = ModelSettings(tool_choice="required")
+    model_settings = ModelConfig(tool_choice="required")
 
-    tools: list[Tool] = [execute_calculation]
+    tools: list[Any] =[_execute_calculation]
 
-    return Agent(
+    return _provider.create_agent(
         name="Circuitron-PlanEditor",
         instructions=PLAN_EDIT_PROMPT,
         model=settings.plan_edit_model,
@@ -93,7 +105,7 @@ def create_plan_edit_agent() -> Agent:
     )
 
 
-def create_partfinder_agent(footprint_search_enabled: bool = True) -> Agent:
+def create_partfinder_agent(footprint_search_enabled: bool = True) -> AgentHandle:
     """Create and configure the PartFinder Agent.
 
     Args:
@@ -103,16 +115,16 @@ def create_partfinder_agent(footprint_search_enabled: bool = True) -> Agent:
         Configured :class:`~agents.Agent` instance.
     """
     # KiCad tools operate inside a single Docker container; avoid parallel tool calls
-    model_settings = ModelSettings(tool_choice="required", parallel_tool_calls=False)
+    model_settings = ModelConfig(tool_choice="required", parallel_tool_calls=False)
 
-    tools: list[Tool] = [search_kicad_libraries]
+    tools: list[Any] =[_search_kicad_libraries]
     prompt = PARTFINDER_PROMPT
     if footprint_search_enabled:
-        tools.append(search_kicad_footprints)
+        tools.append(_search_kicad_footprints)
     else:
         prompt = PARTFINDER_PROMPT_NO_FOOTPRINT
 
-    return Agent(
+    return _provider.create_agent(
         name="Circuitron-PartFinder",
         instructions=prompt,
         model=settings.part_finder_model,
@@ -122,19 +134,19 @@ def create_partfinder_agent(footprint_search_enabled: bool = True) -> Agent:
     )
 
 
-def create_partselection_agent() -> Agent:
+def create_partselection_agent() -> AgentHandle:
     """Create and configure the Part Selection Agent."""
     # Serializes calls to KiCad-backed tools to prevent container races
-    model_settings = ModelSettings(tool_choice="required", parallel_tool_calls=False)
+    model_settings = ModelConfig(tool_choice="required", parallel_tool_calls=False)
 
-    tools: list[Tool] = [extract_pin_details]
+    tools: list[Any] =[_extract_pin_details]
 
     prompt = (
         PART_SELECTION_PROMPT
         if settings.footprint_search_enabled
         else PART_SELECTION_PROMPT_NO_FOOTPRINT
     )
-    return Agent(
+    return _provider.create_agent(
         name="Circuitron-PartSelector",
         instructions=prompt,
         model=settings.part_selection_model,
@@ -144,25 +156,26 @@ def create_partselection_agent() -> Agent:
     )
 
 
-def create_documentation_agent() -> Agent:
+def create_documentation_agent() -> AgentHandle:
     """Create and configure the Documentation Agent."""
-    model_settings = ModelSettings(
+    model_settings = ModelConfig(
         tool_choice=_tool_choice_for_mcp(settings.documentation_model)
     )
 
-    return Agent(
+    return _provider.create_agent(
         name="Circuitron-DocSeeker",
         instructions=DOC_AGENT_PROMPT,
         model=settings.documentation_model,
         output_type=DocumentationOutput,
+        tools=[],
         mcp_servers=[mcp_manager.get_server()],
         model_settings=model_settings,
     )
 
 
-def create_code_generation_agent() -> Agent:
+def create_code_generation_agent() -> AgentHandle:
     """Create and configure the Code Generation Agent."""
-    model_settings = ModelSettings(
+    model_settings = ModelConfig(
         tool_choice=_tool_choice_for_mcp(settings.code_generation_model)
     )
 
@@ -171,25 +184,26 @@ def create_code_generation_agent() -> Agent:
         if settings.footprint_search_enabled
         else CODE_GENERATION_PROMPT_NO_FOOTPRINT
     )
-    return Agent(
+    return _provider.create_agent(
         name="Circuitron-Coder",
         instructions=prompt,
         model=settings.code_generation_model,
         output_type=CodeGenerationOutput,
+        tools=[],
         mcp_servers=[mcp_manager.get_server()],
         model_settings=model_settings,
     )
 
 
-def create_code_validation_agent() -> Agent:
+def create_code_validation_agent() -> AgentHandle:
     """Create and configure the Code Validation Agent."""
-    model_settings = ModelSettings(
+    model_settings = ModelConfig(
         tool_choice=_tool_choice_for_mcp(settings.code_validation_model)
     )
 
-    tools: list[Tool] = [get_kg_usage_guide]
+    tools: list[Any] =[_get_kg_usage_guide]
 
-    return Agent(
+    return _provider.create_agent(
         name="Circuitron-Validator",
         instructions=CODE_VALIDATION_PROMPT,
         model=settings.code_validation_model,
@@ -200,15 +214,15 @@ def create_code_validation_agent() -> Agent:
     )
 
 
-def create_code_correction_agent() -> Agent:
+def create_code_correction_agent() -> AgentHandle:
     """Create and configure the Code Correction Agent."""
-    model_settings = ModelSettings(
+    model_settings = ModelConfig(
         tool_choice=_tool_choice_for_mcp(settings.code_correction_model)
     )
 
-    tools: list[Tool] = [get_kg_usage_guide]
+    tools: list[Any] =[_get_kg_usage_guide]
 
-    return Agent(
+    return _provider.create_agent(
         name="Circuitron-Corrector",
         instructions=CODE_CORRECTION_PROMPT,
         model=settings.code_correction_model,
@@ -219,18 +233,18 @@ def create_code_correction_agent() -> Agent:
     )
 
 
-def create_runtime_error_correction_agent() -> Agent:
+def create_runtime_error_correction_agent() -> AgentHandle:
     """Create and configure the Runtime Error Correction Agent."""
 
     # Runtime checker uses the KiCad Docker session; keep tool calls sequential
-    model_settings = ModelSettings(
+    model_settings = ModelConfig(
         tool_choice=_tool_choice_for_mcp(settings.runtime_correction_model),
         parallel_tool_calls=False,
     )
 
-    tools: list[Tool] = [get_kg_usage_guide, run_runtime_check_tool]
+    tools: list[Any] =[_get_kg_usage_guide, _run_runtime_check]
 
-    return Agent(
+    return _provider.create_agent(
         name="Circuitron-RuntimeCorrector",
         instructions=RUNTIME_ERROR_CORRECTION_PROMPT,
         model=settings.runtime_correction_model,
@@ -241,17 +255,17 @@ def create_runtime_error_correction_agent() -> Agent:
     )
 
 
-def create_erc_handling_agent() -> Agent:
+def create_erc_handling_agent() -> AgentHandle:
     """Create and configure the ERC Handling Agent."""
     # ERC tool runs in the KiCad Docker session; avoid parallel tool calls
-    model_settings = ModelSettings(
+    model_settings = ModelConfig(
         tool_choice=_tool_choice_for_mcp(settings.erc_handling_model),
         parallel_tool_calls=False,
     )
 
-    tools: list[Tool] = [run_erc_tool]
+    tools: list[Any] =[_run_erc]
 
-    return Agent(
+    return _provider.create_agent(
         name="Circuitron-ERCHandler",
         instructions=ERC_HANDLING_PROMPT,
         model=settings.erc_handling_model,
@@ -262,61 +276,61 @@ def create_erc_handling_agent() -> Agent:
     )
 
 
-def get_planning_agent() -> Agent:
+def get_planning_agent() -> AgentHandle:
     """Return a new instance of the Planning Agent."""
 
     return create_planning_agent()
 
 
-def get_plan_edit_agent() -> Agent:
+def get_plan_edit_agent() -> AgentHandle:
     """Return a new instance of the Plan Edit Agent."""
 
     return create_plan_edit_agent()
 
 
-def get_partfinder_agent() -> Agent:
+def get_partfinder_agent() -> AgentHandle:
     """Return a new instance of the PartFinder Agent."""
 
     return create_partfinder_agent(settings.footprint_search_enabled)
 
 
-def get_partselection_agent() -> Agent:
+def get_partselection_agent() -> AgentHandle:
     """Return a new instance of the Part Selection Agent."""
 
     return create_partselection_agent()
 
 
-def get_documentation_agent() -> Agent:
+def get_documentation_agent() -> AgentHandle:
     """Return a new instance of the Documentation Agent."""
 
     return create_documentation_agent()
 
 
-def get_code_generation_agent() -> Agent:
+def get_code_generation_agent() -> AgentHandle:
     """Return a new instance of the Code Generation Agent."""
 
     return create_code_generation_agent()
 
 
-def get_code_validation_agent() -> Agent:
+def get_code_validation_agent() -> AgentHandle:
     """Return a new instance of the Code Validation Agent."""
 
     return create_code_validation_agent()
 
 
-def get_code_correction_agent() -> Agent:
+def get_code_correction_agent() -> AgentHandle:
     """Return a new instance of the Code Correction Agent."""
 
     return create_code_correction_agent()
 
 
-def get_runtime_error_correction_agent() -> Agent:
+def get_runtime_error_correction_agent() -> AgentHandle:
     """Return a new instance of the Runtime Error Correction Agent."""
 
     return create_runtime_error_correction_agent()
 
 
-def get_erc_handling_agent() -> Agent:
+def get_erc_handling_agent() -> AgentHandle:
     """Return a new instance of the ERC Handling Agent."""
 
     return create_erc_handling_agent()

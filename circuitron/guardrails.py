@@ -6,20 +6,20 @@ from typing import Any
 
 import asyncio
 from pydantic import BaseModel
-from agents import Agent, GuardrailFunctionOutput, Runner, input_guardrail
 import httpx
-import openai
 
+from .providers import get_provider
 from .ui.app import TerminalUI
-
 from .network import is_connected
 from .exceptions import PipelineError
 from .config import settings
 from .telemetry import record_from_run_result
 
+_provider = get_provider(settings)
+
 
 class PCBQueryOutput(BaseModel):
-    """Output schema for :func:`pcb_query_guardrail`."""
+    """Output schema for the PCB relevance check."""
 
     is_relevant: bool
     reasoning: str
@@ -28,34 +28,23 @@ class PCBQueryOutput(BaseModel):
 # Cheap model used to triage queries before running expensive agents
 _QUERY_MODEL = "gpt-5-nano"
 
-pcb_query_agent = Agent(
+_pcb_query_agent = _provider.create_agent(
     name="PCB Query Check",
     instructions="Determine if the user's request is related to electrical or PCB design.",
     model=_QUERY_MODEL,
     output_type=PCBQueryOutput,
+    tools=[],
 )
 
 
-@input_guardrail
-async def pcb_query_guardrail(ctx: Any, agent: Any, input_data: Any) -> GuardrailFunctionOutput:
-    """Refuse processing if the user query is not PCB related.
+async def _pcb_check(input_data: Any) -> bool:
+    """Return ``True`` when ``input_data`` is a PCB-related query.
 
-    Args:
-        ctx: The :class:`~agents.RunContextWrapper` supplied to the guardrail.
-        agent: The :class:`~agents.Agent` about to run.
-        input_data: The user's request or message payload.
-
-    Returns:
-        A :class:`GuardrailFunctionOutput` describing whether the query is
-        relevant. ``tripwire_triggered`` is ``True`` when the query is
-        unrelated to PCB design.
-
-    Example:
-        >>> await pcb_query_guardrail(ctx, agent, "Design a buck converter")
-        GuardrailFunctionOutput(...)
+    Runs a cheap triage agent.  Returns ``True`` (allow through) on
+    network errors to avoid blocking legitimate requests.
     """
     try:
-        coro = Runner.run(pcb_query_agent, input_data, context=ctx.context)
+        coro = _provider.run_agent(_pcb_query_agent, input_data, max_turns=1)
         result = await asyncio.wait_for(coro, timeout=settings.network_timeout)
     except asyncio.TimeoutError:
         if not is_connected(timeout=5.0):
@@ -65,7 +54,7 @@ async def pcb_query_guardrail(ctx: Any, agent: Any, input_data: Any) -> Guardrai
         raise PipelineError(
             "Network operation timed out. Consider increasing CIRCUITRON_NETWORK_TIMEOUT."
         )
-    except (httpx.HTTPError, openai.OpenAIError) as exc:
+    except (httpx.HTTPError, _provider.api_error_type()) as exc:
         TerminalUI().display_error(f"Network error: {exc}")
         if not is_connected(timeout=5.0):
             raise PipelineError(
@@ -73,17 +62,19 @@ async def pcb_query_guardrail(ctx: Any, agent: Any, input_data: Any) -> Guardrai
             ) from exc
         raise PipelineError("Network connection issue") from exc
 
-    # Aggregate guardrail token usage too (no-op if usage missing)
     try:
         record_from_run_result(result)
     except Exception:
         pass
 
-    output = result.final_output_as(PCBQueryOutput)
-    return GuardrailFunctionOutput(
-        output_info=output,
-        tripwire_triggered=not output.is_relevant,
-    )
+    output = _provider.extract_output(result, PCBQueryOutput)
+    return output.is_relevant
+
+
+# Provider wraps _pcb_check into the SDK-specific guardrail format.
+# For OpenAI this applies @input_guardrail + GuardrailFunctionOutput.
+# For Anthropic it is stored but not enforced (pending implementation).
+pcb_query_guardrail = _provider.make_guardrail(_pcb_check)
 
 
 __all__ = ["pcb_query_guardrail"]

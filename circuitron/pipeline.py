@@ -11,7 +11,7 @@ import asyncio
 import json
 import os
 import re
-from typing import cast
+from typing import Any, cast
 from collections.abc import Mapping
 
 from circuitron.config import settings
@@ -34,8 +34,6 @@ from circuitron.agents import (
     get_runtime_error_correction_agent,
     get_erc_handling_agent,
 )
-from agents import Agent
-from agents.result import RunResult
 from circuitron.models import (
     PlanOutput,
     UserFeedback,
@@ -122,8 +120,8 @@ __all__ = [
 async def run_planner(
     prompt: str,
     ui: "TerminalUI" | None = None,
-    agent: Agent | None = None,
-) -> RunResult:
+    agent: Any | None = None,
+) -> Any:
     """Run the planning agent and return the run result."""
 
     agent = agent or get_planning_agent()
@@ -140,7 +138,7 @@ async def run_plan_editor(
     plan: PlanOutput,
     feedback: UserFeedback,
     ui: "TerminalUI" | None = None,
-    agent: Agent | None = None,
+    agent: Any | None = None,
 ) -> PlanEditorOutput:
     """Run the PlanEditor agent with formatted input."""
     if ui:
@@ -156,7 +154,7 @@ async def run_plan_editor(
 async def run_part_finder(
     plan: PlanOutput,
     ui: "TerminalUI" | None = None,
-    agent: Agent | None = None,
+    agent: Any | None = None,
 ) -> PartFinderOutput:
     """Search KiCad libraries for components from the plan."""
     if ui:
@@ -173,7 +171,7 @@ async def run_part_selector(
     plan: PlanOutput,
     part_output: PartFinderOutput,
     ui: "TerminalUI" | None = None,
-    agent: Agent | None = None,
+    agent: Any | None = None,
 ) -> PartSelectionOutput:
     """Select optimal parts using search results."""
     if ui:
@@ -190,7 +188,7 @@ async def run_documentation(
     plan: PlanOutput,
     selection: PartSelectionOutput,
     ui: "TerminalUI" | None = None,
-    agent: Agent | None = None,
+    agent: Any | None = None,
 ) -> DocumentationOutput:
     """Gather SKiDL documentation based on plan and selected parts."""
     if ui:
@@ -208,7 +206,7 @@ async def run_code_generation(
     selection: PartSelectionOutput,
     docs: DocumentationOutput,
     ui: "TerminalUI" | None = None,
-    agent: Agent | None = None,
+    agent: Any | None = None,
 ) -> CodeGenerationOutput:
     """Generate SKiDL code using plan, selected parts, and documentation."""
     if ui:
@@ -230,7 +228,7 @@ async def run_code_validation(
     docs: DocumentationOutput,
     run_erc_flag: bool = True,
     ui: "TerminalUI" | None = None,
-    agent: Agent | None = None,
+    agent: Any | None = None,
 ) -> tuple[CodeValidationOutput, dict[str, object] | None]:
     """Validate generated code and optionally run ERC.
 
@@ -305,7 +303,7 @@ async def run_code_correction(
     docs: DocumentationOutput,
     erc_result: dict[str, object] | None = None,
     ui: "TerminalUI" | None = None,
-    agent: Agent | None = None,
+    agent: Any | None = None,
 ) -> CodeGenerationOutput:
     """Run the Code Correction agent and return updated code."""
     if ui:
@@ -335,7 +333,7 @@ async def run_validation_correction(
     docs: DocumentationOutput,
     context: CorrectionContext | None = None,
     ui: "TerminalUI" | None = None,
-    agent: Agent | None = None,
+    agent: Any | None = None,
 ) -> CodeGenerationOutput:
     """Run code correction to address validation errors only.
 
@@ -379,7 +377,7 @@ async def run_erc_handling(
     erc_result: dict[str, object] | None,
     context: CorrectionContext | None = None,
     ui: "TerminalUI" | None = None,
-    agent: Agent | None = None,
+    agent: Any | None = None,
 ) -> tuple[CodeGenerationOutput, ERCHandlingOutput]:
     """Run the ERC Handling agent and return updated code and ERC info."""
 
@@ -410,7 +408,7 @@ async def run_runtime_check_and_correction(
     docs: DocumentationOutput,
     context: CorrectionContext,
     ui: "TerminalUI" | None = None,
-    agent: Agent | None = None,
+    agent: Any | None = None,
 ) -> tuple[CodeGenerationOutput, bool]:
     """Check for runtime errors and correct them if needed."""
 

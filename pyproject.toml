@@ -19,6 +19,9 @@ dependencies = [
     "logfire>=3.22.0",
 ]
 
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.49.0"]
+
 
 [project.scripts]
 circuitron = "circuitron.cli:main"

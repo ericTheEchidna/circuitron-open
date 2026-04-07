@@ -6,8 +6,6 @@ checks, creating MCP server connections, and retrieving knowledge graph
 guidance.
 """
 
-from agents import function_tool
-from agents.mcp import MCPServerSse
 import asyncio
 import os
 import subprocess
@@ -24,18 +22,13 @@ from .utils import (
 )
 
 __all__ = [
-    "MCPServerSse",
     "execute_calculation",
     "search_kicad_libraries",
     "search_kicad_footprints",
     "extract_pin_details",
-    "create_mcp_server",
     "run_erc",
-    "run_erc_tool",
     "run_runtime_check",
-    "run_runtime_check_tool",
     "execute_final_script",
-    "execute_final_script_tool",
     "get_kg_usage_guide",
 ]
 
@@ -44,7 +37,6 @@ container_name = f"circuitron-kicad-{os.getpid()}"
 kicad_session: DockerSession = DockerSession(settings.kicad_image, container_name)
 
 
-@function_tool
 async def execute_calculation(
     calculation_id: str,
     code: str,
@@ -103,7 +95,6 @@ async def execute_calculation(
     )
 
 
-@function_tool
 async def search_kicad_libraries(query: str, max_results: int = 50) -> str:
     """Search KiCad libraries using ``skidl.search``.
 
@@ -202,7 +193,6 @@ print(json.dumps(filtered_results))
     return proc.stdout.strip()
 
 
-@function_tool
 async def search_kicad_footprints(query: str, max_results: int = 30) -> str:
     """Search KiCad footprint libraries using ``skidl.search_footprints``.
 
@@ -280,7 +270,6 @@ print(json.dumps(results))
     return proc.stdout.strip()
 
 
-@function_tool
 async def extract_pin_details(library: str, part_name: str) -> str:
     """Return pin details by creating Part object and accessing pins directly."""
     script = textwrap.dedent(f"""
@@ -324,25 +313,6 @@ except Exception as exc:
         return json.dumps({"error": str(exc)})
     return proc.stdout.strip()
 
-
-def create_mcp_server() -> MCPServerSse:
-    """Create MCP server connection used by all agents.
-
-    Returns:
-        MCPServerSse configured for the ``skidl_docs`` server.
-    """
-    url = f"{settings.mcp_url}/sse"
-    timeout = settings.network_timeout
-    return MCPServerSse(
-        name="skidl_docs",
-        params={
-            "url": url,
-            "timeout": timeout,
-            "sse_read_timeout": timeout * 2,
-        },
-        cache_tools_list=True,
-        client_session_timeout_seconds=timeout,
-    )
 
 
 async def run_runtime_check(
@@ -450,9 +420,6 @@ async def run_runtime_check(
 
     return proc.stdout.strip()
 
-
-# Expose the runtime checker as a FunctionTool named ``run_runtime_check``.
-run_runtime_check_tool = function_tool(run_runtime_check)
 
 
 async def run_erc(
@@ -565,11 +532,6 @@ async def run_erc(
 
     return proc.stdout.strip()
 
-
-# Expose the ERC checker as a FunctionTool named ``run_erc``.
-# ``run_erc_tool`` is the variable imported by agents but the tool's
-# ``name`` attribute remains "run_erc".
-run_erc_tool = function_tool(run_erc)
 
 
 async def execute_final_script(
@@ -820,10 +782,7 @@ except Exception:
         except OSError:
             pass
 
-execute_final_script_tool = function_tool(execute_final_script)
 
-
-@function_tool
 async def get_kg_usage_guide(task_type: str) -> str:
     """Return knowledge graph query examples for common validation tasks.
 

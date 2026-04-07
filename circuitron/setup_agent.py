@@ -6,13 +6,15 @@ invokes MCP tools to populate Supabase (docs) and Neo4j (knowledge graph).
 
 from __future__ import annotations
 
-from agents import Agent
-from agents.model_settings import ModelSettings
+from typing import Any
 
+from .providers import get_provider
+from .provider import AgentHandle, ModelConfig
 from .config import settings
 from .prompts import SETUP_AGENT_PROMPT
 from .models import SetupOutput
-from .tools import create_mcp_server
+
+_provider = get_provider(settings)
 
 
 def _tool_choice_for_mcp(model: str) -> str:
@@ -25,21 +27,25 @@ def _tool_choice_for_mcp(model: str) -> str:
     return "auto" if model == "o4-mini" else "required"
 
 
-def create_setup_agent() -> tuple[Agent, object]:
+def create_setup_agent() -> tuple[AgentHandle, Any]:
     """Create and configure the Setup Agent and its dedicated MCP server.
 
     Returns:
-        (agent, server): The configured Agent and a fresh MCP server instance.
+        (agent, server): The configured agent handle and a fresh MCP server
+        instance.
 
     Notes:
         The caller is responsible for connecting and cleaning up the server.
     """
 
-    model_settings = ModelSettings(tool_choice=_tool_choice_for_mcp(settings.documentation_model))
+    model_settings = ModelConfig(tool_choice=_tool_choice_for_mcp(settings.documentation_model))
 
     # Use a dedicated MCP server for the setup flow to keep it isolated
-    server = create_mcp_server()
-    agent = Agent(
+    server = _provider.make_mcp_server(
+        url=f"{settings.mcp_url}/sse",
+        timeout=settings.network_timeout,
+    )
+    agent = _provider.create_agent(
         name="Circuitron-Setup",
         instructions=SETUP_AGENT_PROMPT,
         model=settings.documentation_model,
@@ -50,7 +56,7 @@ def create_setup_agent() -> tuple[Agent, object]:
     return agent, server
 
 
-def get_setup_agent() -> tuple[Agent, object]:
+def get_setup_agent() -> tuple[AgentHandle, Any]:
     """Return a new Setup Agent and its MCP server instance."""
 
     return create_setup_agent()
