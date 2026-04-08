@@ -277,6 +277,63 @@ Refresh procedure (clean rebuild):
 
 Important: Always delete the existing SKiDL knowledge base contents before repopulating to avoid mixing old and new documentation.
 
+## Local Neo4j (Docker Compose)
+
+If you are using the local pgvector path (Option A) or simply want to avoid a
+cloud Neo4j account, you can run Neo4j locally with Docker Compose.
+
+**Step 1 — Start Neo4j**
+
+```bash
+docker compose up -d neo4j
+```
+
+This starts Neo4j 5 Community Edition on the standard ports:
+
+| Port | Purpose |
+|------|---------|
+| 7687 | Bolt (driver/tool connections) |
+| 7474 | Neo4j Browser (web UI) |
+
+Data is persisted in a named Docker volume (`neo4j_data`).
+
+**Step 2 — Configure credentials in `mcp.env`**
+
+```env
+NEO4J_URI=bolt://host.docker.internal:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=circuitron   # matches NEO4J_PASSWORD in .env (default: circuitron)
+```
+
+`host.docker.internal` resolves to the host from inside a Docker container.  If
+running the MCP server outside Docker, use `bolt://localhost:7687` instead.
+
+**Step 3 — Add `NEO4J_URI` to `.env`**
+
+Circuitron checks Neo4j reachability at startup (when `NEO4J_URI` is set).  Add
+it to your `.env` so the check runs:
+
+```env
+NEO4J_URI=bolt://localhost:7687
+```
+
+**Step 4 — Populate the knowledge graph**
+
+```bash
+circuitron setup
+```
+
+This calls the MCP `parse_github_repository` tool to populate the local Neo4j
+instance with the SKiDL knowledge graph.
+
+**Opting out of the knowledge graph**
+
+Set `USE_KNOWLEDGE_GRAPH=false` in `mcp.env` and omit `NEO4J_URI` from `.env`.
+The RAG documentation corpus will still work; only the graph-based validation
+features will be disabled.
+
+---
+
 ## Additional Notes on LLM Provider Configuration
 
 ### Using Anthropic Claude (no OpenAI required for the main app)

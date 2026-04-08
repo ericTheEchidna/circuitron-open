@@ -205,11 +205,68 @@ def verify_mcp_server(ui: Any | None = None) -> bool:
     return False
 
 
+def is_neo4j_available(uri: str | None = None, *, timeout: float = 3.0) -> bool:
+    """Return True if a TCP connection can be established to the Neo4j Bolt port.
+
+    Args:
+        uri: Bolt URI, e.g. ``"bolt://localhost:7687"``. Defaults to the
+             ``NEO4J_URI`` environment variable.
+        timeout: Connection timeout in seconds.
+
+    Returns:
+        True if reachable, False otherwise.  Also returns True when no URI is
+        configured (check is skipped — knowledge graph disabled).
+    """
+    import socket
+    from urllib.parse import urlparse
+
+    target = uri or os.getenv("NEO4J_URI", "")
+    if not target:
+        return True  # not configured — skip
+
+    try:
+        parsed = urlparse(target)
+        host = parsed.hostname or "localhost"
+        port = parsed.port or 7687
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except (OSError, socket.timeout):
+        return False
+
+
+def verify_neo4j(ui: Any | None = None) -> bool:
+    """Ensure Neo4j is reachable; display a clear error and return False if not.
+
+    Only performs a check when ``NEO4J_URI`` is set in the environment.  When
+    the variable is absent the knowledge graph feature is assumed disabled and
+    this function returns True immediately.
+
+    Returns:
+        True if reachable or not configured, False if unreachable.
+    """
+    uri = os.getenv("NEO4J_URI", "")
+    if not uri:
+        return True
+
+    if is_neo4j_available(uri):
+        return True
+
+    message = (
+        f"Neo4j unreachable at {uri}.\n"
+        "Start it with:  docker compose up -d neo4j\n"
+        "Or set USE_KNOWLEDGE_GRAPH=false in mcp.env to skip the knowledge graph."
+    )
+    _display_error(message, ui=ui)
+    return False
+
+
 __all__ = [
     "check_internet_connection",
     "is_connected",
     "is_mcp_server_available",
+    "is_neo4j_available",
     "detect_running_mcp_docker_container",
     "verify_mcp_server",
+    "verify_neo4j",
     "httpx",
 ]

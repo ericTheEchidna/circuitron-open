@@ -1,3 +1,14 @@
+# Circuitron local services
+#
+# Start Neo4j:
+#   docker compose up -d neo4j
+#
+# Stop and keep data:
+#   docker compose stop neo4j
+#
+# Full teardown (deletes graph data):
+#   docker compose down -v
+
 services:
   pgvector:
     image: pgvector/pgvector:pg16
@@ -21,6 +32,23 @@ services:
       - ollama_data:/root/.ollama
     restart: unless-stopped
 
+  neo4j:
+    image: neo4j:5-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-circuitron}
+    ports:
+      - "7474:7474"   # Neo4j Browser
+      - "7687:7687"   # Bolt protocol
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "neo4j", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   mcp-local:
     build:
       context: .
@@ -37,3 +65,4 @@ services:
 volumes:
   pgvector_data:
   ollama_data:
+  neo4j_data:
