@@ -30,6 +30,7 @@ __all__ = [
     "run_runtime_check",
     "execute_final_script",
     "get_kg_usage_guide",
+    "retrieve_electronics_knowledge",
 ]
 
 
@@ -890,3 +891,61 @@ async def get_kg_usage_guide(task_type: str) -> str:
     return guides.get(task, "Task type not recognized. Available types: class, method, function, import, attribute, workflow, schema, advanced, examples")
 
 
+async def retrieve_electronics_knowledge(query: str, project: str = "kicad") -> str:
+    """Query the memex electronics knowledge base for component specs and design references.
+
+    Searches ingested datasheets, application notes, and design patterns stored in
+    the local memex knowledge base.  Returns a formatted markdown block with ranked
+    results including title, source, page number, and a text excerpt.
+
+    Args:
+        query: Natural-language search query, e.g. "LM2596 output capacitor ESR".
+        project: Memex project/collection to search (default: ``"kicad"``).
+
+    Returns:
+        Markdown-formatted results string, or an empty string when memex is
+        unreachable or not configured (never raises).
+    """
+    base_url = settings.memex_api_url
+    if not base_url:
+        return ""
+
+    url = f"{base_url.rstrip('/')}/search"
+    params = {"q": query, "project": project, "n": 5}
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, params=params)
+            resp.raise_for_status()
+            results = resp.json()
+    except Exception:
+        # Memex is optional — silently return empty on any error
+        return ""
+
+    if not results:
+        return ""
+
+    lines: list[str] = [f"**Memex knowledge results for:** {query}\n"]
+    for i, item in enumerate(results, 1):
+        title = item.get("title") or item.get("filename") or "Untitled"
+        source = item.get("source") or item.get("file_path") or ""
+        page = item.get("page")
+        score = item.get("score")
+        excerpt = (item.get("text") or item.get("content") or "").strip()
+        if len(excerpt) > 400:
+            excerpt = excerpt[:400] + "…"
+
+        header = f"**[{i}] {title}**"
+        if source:
+            header += f" — `{source}`"
+        if page is not None:
+            header += f" (p. {page})"
+        if score is not None:
+            header += f" [score: {score:.3f}]"
+        lines.append(header)
+        if excerpt:
+            lines.append(f"> {excerpt}")
+        lines.append("")
+
+    return "\n".join(lines)

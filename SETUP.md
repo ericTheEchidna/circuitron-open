@@ -379,6 +379,26 @@ Enabling data sharing on OpenAI's platform grants additional free daily usage an
 
 Hope this helps you get started with circuitron-open! If you have any questions or run into issues, feel free to open an issue on the GitHub repository.
 
+## Memex electronics knowledge base (optional)
+
+If you run [memex](https://github.com/erictheechidna/memex) with an electronics
+collection (datasheets, application notes), Circuitron can query it during planning,
+part selection, and code generation.
+
+Set `MEMEX_API_URL` in `.env`:
+
+```env
+MEMEX_API_URL=http://miso:8002
+```
+
+When this variable is set, the planner, part-finder, and code-generation agents
+gain a `retrieve_electronics_knowledge` tool that queries
+`GET {MEMEX_API_URL}/search?q=...&project=kicad&n=5` and formats the top results
+as markdown context.  The tool silently returns nothing if memex is unreachable —
+it is never a hard dependency and does not require `circuitron setup` to work.
+
+---
+
 ## Pricing and Cost Estimation
 
 Circuitron ships with built-in default prices in `circuitron/model_prices_builtin.py` so cost estimates work out of the box.

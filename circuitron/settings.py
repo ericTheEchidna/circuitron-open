@@ -49,6 +49,9 @@ class Settings:
     mcp_url: str = field(
         default_factory=lambda: os.getenv("MCP_URL", "http://localhost:8051")
     )
+    memex_api_url: str = field(
+        default_factory=lambda: os.getenv("MEMEX_API_URL", "")
+    )
     max_turns: int = field(
         default_factory=lambda: int(os.getenv("CIRCUITRON_MAX_TURNS", "50"))
     )

@@ -34,6 +34,8 @@ For component search queries, use SKiDL keyword style:
 - Examples: "opamp lm324 quad", "capacitor ceramic", "mosfet n-channel"
 
 Focus on creating a complete, actionable plan that later agents can execute. **When calculations are required, always write them as code, not as internal reasoning or estimates.**
+
+If the `retrieve_electronics_knowledge` tool is available, use it to look up component datasheets, application notes, and design patterns before finalising component choices and equations. Prefer results with high relevance scores.
 """
 
 # ---------- Plan Edit Agent Prompt ----------
@@ -133,6 +135,8 @@ The search tools will handle result limiting and smart prioritization. Your job 
 **Remember:** The next agent (PartSelector) will choose the best options, so focus on finding relevant candidates efficiently, not every possible variant.
 
 **After constructing focused queries, use the search tools to find the required parts and remember to find both parts and associated footprints.**
+
+If the `retrieve_electronics_knowledge` tool is available, call it before searching KiCad to look up datasheet values (e.g. pin counts, package variants, electrical specs) for specific ICs. This helps you construct more accurate search terms.
 """
 
 PARTFINDER_PROMPT_NO_FOOTPRINT = f"""{RECOMMENDED_PROMPT_PREFIX}
@@ -625,7 +629,9 @@ generate_pcb()
 **Output Format:**
 Generate a single, complete Python script that can be executed directly to produce the schematic. Include a header comment with the design description and any important notes for the engineer reviewing the code.
 
-Your code must be production-ready, syntactically correct, and faithful to both the electrical design requirements and SKiDL best practices. The generated schematic should accurately represent the design intent and be suitable for professional PCB development workflows."""
+Your code must be production-ready, syntactically correct, and faithful to both the electrical design requirements and SKiDL best practices. The generated schematic should accurately represent the design intent and be suitable for professional PCB development workflows.
+
+If the `retrieve_electronics_knowledge` tool is available, use it to look up component specs, typical application circuits, and design patterns (e.g. "LM2596 typical application circuit", "bypass capacitor placement rules"). Prefer sources with high scores and source_type=pdf. Use retrieved values for component parameters rather than guessing."""
 
 # Variant without footprint instructions
 CODE_GENERATION_PROMPT_NO_FOOTPRINT = f"""{RECOMMENDED_PROMPT_PREFIX}

@@ -50,6 +50,7 @@ from .tools import (
     run_erc,
     run_runtime_check,
     get_kg_usage_guide,
+    retrieve_electronics_knowledge,
 )
 
 _provider = get_provider(settings)
@@ -62,6 +63,7 @@ _extract_pin_details = _provider.wrap_tool(extract_pin_details)
 _run_erc = _provider.wrap_tool(run_erc)
 _run_runtime_check = _provider.wrap_tool(run_runtime_check)
 _get_kg_usage_guide = _provider.wrap_tool(get_kg_usage_guide)
+_retrieve_electronics_knowledge = _provider.wrap_tool(retrieve_electronics_knowledge)
 from .mcp_manager import mcp_manager
 from .guardrails import pcb_query_guardrail
 
@@ -76,7 +78,9 @@ def create_planning_agent() -> AgentHandle:
     """Create and configure the Planning Agent."""
     model_settings = ModelConfig(tool_choice="required")
 
-    tools: list[Any] =[_execute_calculation]
+    tools: list[Any] = [_execute_calculation]
+    if settings.memex_api_url:
+        tools.append(_retrieve_electronics_knowledge)
 
     return _provider.create_agent(
         name="Circuitron-Planner",
@@ -117,12 +121,14 @@ def create_partfinder_agent(footprint_search_enabled: bool = True) -> AgentHandl
     # KiCad tools operate inside a single Docker container; avoid parallel tool calls
     model_settings = ModelConfig(tool_choice="required", parallel_tool_calls=False)
 
-    tools: list[Any] =[_search_kicad_libraries]
+    tools: list[Any] = [_search_kicad_libraries]
     prompt = PARTFINDER_PROMPT
     if footprint_search_enabled:
         tools.append(_search_kicad_footprints)
     else:
         prompt = PARTFINDER_PROMPT_NO_FOOTPRINT
+    if settings.memex_api_url:
+        tools.append(_retrieve_electronics_knowledge)
 
     return _provider.create_agent(
         name="Circuitron-PartFinder",
@@ -184,12 +190,16 @@ def create_code_generation_agent() -> AgentHandle:
         if settings.footprint_search_enabled
         else CODE_GENERATION_PROMPT_NO_FOOTPRINT
     )
+    tools: list[Any] = []
+    if settings.memex_api_url:
+        tools.append(_retrieve_electronics_knowledge)
+
     return _provider.create_agent(
         name="Circuitron-Coder",
         instructions=prompt,
         model=settings.code_generation_model,
         output_type=CodeGenerationOutput,
-        tools=[],
+        tools=tools,
         mcp_servers=[mcp_manager.get_server()],
         model_settings=model_settings,
     )
