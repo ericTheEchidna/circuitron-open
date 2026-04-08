@@ -115,6 +115,21 @@ docker run --env-file mcp.env -p 8051:8051 circuitron-mcp-local
 Then run `circuitron setup` (or type `/setup` in the UI) to populate the knowledge
 bases. No Supabase credentials are needed.
 
+> **Embedding dimensions:** The default embedding model is OpenAI `text-embedding-3-small`
+> (1536 dimensions). If you switch to a local Ollama model, you **must** update the
+> `vector(1536)` column definitions in `setup_pgvector_local.sql` to match the model's
+> dimension before running the schema, then set `EMBEDDING_DIMENSIONS` in `mcp.env`:
+>
+> | Model | Dimensions |
+> |---|---|
+> | `nomic-embed-text` | 768 |
+> | `mxbai-embed-large` | 1024 |
+> | `all-minilm` | 384 |
+> | `bge-m3` | 1024 |
+>
+> Changing dimensions requires dropping and recreating all vector tables and
+> re-running `circuitron setup`. See `mcp.env.local.example` for the full config.
+
 > **Note on USE_KNOWLEDGE_GRAPH**: the knowledge graph feature still requires Neo4j.
 > For a fully local stack, run Neo4j locally and set
 > `NEO4J_URI=bolt://host.docker.internal:7687`. To disable the knowledge graph

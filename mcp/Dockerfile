@@ -13,8 +13,10 @@
 
 FROM ghcr.io/shaurya-sethi/circuitron-mcp:latest
 
-# Install psycopg2 (binary wheel — no libpq-dev needed)
-RUN pip install --no-cache-dir psycopg2-binary
+# Install psycopg2 (binary wheel — no libpq-dev needed) and requests (used by
+# the Ollama embedding path; likely already present in the upstream image but
+# listed explicitly to guarantee availability).
+RUN pip install --no-cache-dir psycopg2-binary requests
 
 # Patch: replace utils.py with the provider-agnostic version.
 # The upstream repo layout is src/utils.py; the Docker WORKDIR is /app.

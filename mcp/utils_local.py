@@ -15,8 +15,101 @@ import openai
 import re
 import time
 
-# Load OpenAI API key for embeddings
+# Load OpenAI API key (only required when EMBEDDING_PROVIDER=openai)
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# ---------------------------------------------------------------------------
+# Embedding configuration
+# ---------------------------------------------------------------------------
+_EMBEDDING_PROVIDER: str = os.getenv("EMBEDDING_PROVIDER", "openai").lower()
+_EMBEDDING_MODEL: str = os.getenv(
+    "EMBEDDING_MODEL",
+    "text-embedding-3-small" if _EMBEDDING_PROVIDER == "openai" else "nomic-embed-text",
+)
+_EMBEDDING_BASE_URL: str = os.getenv("EMBEDDING_BASE_URL", "http://localhost:11434").rstrip("/")
+
+# Known vector dimensions for common embedding models
+_KNOWN_DIMS: Dict[str, int] = {
+    "text-embedding-3-small": 1536,
+    "text-embedding-3-large": 3072,
+    "text-embedding-ada-002": 1536,
+    "nomic-embed-text": 768,
+    "nomic-embed-text:latest": 768,
+    "mxbai-embed-large": 1024,
+    "bge-m3": 1024,
+    "snowflake-arctic-embed": 1024,
+    "all-minilm": 384,
+    "all-minilm:l6-v2": 384,
+    "all-minilm:l12-v2": 384,
+}
+
+_dims_env = os.getenv("EMBEDDING_DIMENSIONS", "")
+EMBEDDING_DIMENSIONS: int = int(_dims_env) if _dims_env else _KNOWN_DIMS.get(_EMBEDDING_MODEL, 1536)
+
+# ---------------------------------------------------------------------------
+# Ollama embedding helpers
+# ---------------------------------------------------------------------------
+
+def _validate_embedding_dimensions(embedding: List[float]) -> None:
+    """Raise ValueError when the returned embedding size doesn't match the schema."""
+    actual = len(embedding)
+    if actual != EMBEDDING_DIMENSIONS:
+        raise ValueError(
+            f"Embedding dimension mismatch: expected {EMBEDDING_DIMENSIONS} "
+            f"(EMBEDDING_DIMENSIONS env var / inferred from '{_EMBEDDING_MODEL}') "
+            f"but the model returned {actual} dimensions.\n"
+            f"Fix: set EMBEDDING_DIMENSIONS={actual} in mcp.env, then re-run "
+            f"setup_pgvector_local.sql to recreate the schema with "
+            f"vector({actual}) columns, then re-run circuitron setup."
+        )
+
+
+def _ollama_embed_batch(texts: List[str]) -> List[List[float]]:
+    """Embed a batch of texts via the Ollama HTTP API.
+
+    Tries the batch endpoint (``/api/embed``, Ollama ≥ 0.3) first; falls back
+    to sequential ``/api/embeddings`` calls for older versions.
+    """
+    import requests as _requests
+
+    # Batch API (Ollama ≥ 0.3)
+    try:
+        resp = _requests.post(
+            f"{_EMBEDDING_BASE_URL}/api/embed",
+            json={"model": _EMBEDDING_MODEL, "input": texts},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        embeddings = resp.json().get("embeddings", [])
+        if embeddings and len(embeddings) == len(texts):
+            _validate_embedding_dimensions(embeddings[0])
+            return embeddings
+    except ValueError:
+        # Re-raise dimension errors immediately — they are not retryable
+        raise
+    except Exception as e:
+        print(f"Ollama batch embed failed ({e}), falling back to sequential calls…")
+
+    # Sequential fallback (older Ollama / single-text endpoint)
+    results: List[List[float]] = []
+    for text in texts:
+        try:
+            r = _requests.post(
+                f"{_EMBEDDING_BASE_URL}/api/embeddings",
+                json={"model": _EMBEDDING_MODEL, "prompt": text},
+                timeout=60.0,
+            )
+            r.raise_for_status()
+            emb = r.json().get("embedding", [])
+            _validate_embedding_dimensions(emb)
+            results.append(emb)
+        except ValueError:
+            raise
+        except Exception as ie:
+            print(f"Ollama embed error for text snippet: {ie}")
+            results.append([0.0] * EMBEDDING_DIMENSIONS)
+    return results
+
 
 # ---------------------------------------------------------------------------
 # PostgreSQL adapter (used when DATABASE_URL is set)
@@ -250,13 +343,18 @@ def create_embeddings_batch(texts: List[str]) -> List[List[float]]:
     if not texts:
         return []
 
+    # Route to Ollama when configured
+    if _EMBEDDING_PROVIDER == "ollama":
+        return _ollama_embed_batch(texts)
+
+    # OpenAI path
     max_retries = 3
     retry_delay = 1.0
 
     for retry in range(max_retries):
         try:
             response = openai.embeddings.create(
-                model="text-embedding-3-small",
+                model=_EMBEDDING_MODEL,
                 input=texts
             )
             return [item.embedding for item in response.data]
@@ -274,14 +372,14 @@ def create_embeddings_batch(texts: List[str]) -> List[List[float]]:
                 for i, text in enumerate(texts):
                     try:
                         individual_response = openai.embeddings.create(
-                            model="text-embedding-3-small",
+                            model=_EMBEDDING_MODEL,
                             input=[text]
                         )
                         embeddings.append(individual_response.data[0].embedding)
                         successful_count += 1
                     except Exception as individual_error:
                         print(f"Failed to create embedding for text {i}: {individual_error}")
-                        embeddings.append([0.0] * 1536)
+                        embeddings.append([0.0] * EMBEDDING_DIMENSIONS)
                 print(f"Successfully created {successful_count}/{len(texts)} embeddings individually")
                 return embeddings
 
@@ -289,10 +387,10 @@ def create_embeddings_batch(texts: List[str]) -> List[List[float]]:
 def create_embedding(text: str) -> List[float]:
     try:
         embeddings = create_embeddings_batch([text])
-        return embeddings[0] if embeddings else [0.0] * 1536
+        return embeddings[0] if embeddings else [0.0] * EMBEDDING_DIMENSIONS
     except Exception as e:
         print(f"Error creating embedding: {e}")
-        return [0.0] * 1536
+        return [0.0] * EMBEDDING_DIMENSIONS
 
 
 def generate_contextual_embedding(full_document: str, chunk: str) -> Tuple[str, bool]:

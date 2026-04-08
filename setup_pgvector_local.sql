@@ -8,14 +8,22 @@
 --   1. pgvector extension available (apt: postgresql-<ver>-pgvector)
 --   2. Database already created: CREATE DATABASE circuitron;
 --
--- Embedding dimensions by provider:
---   OpenAI text-embedding-3-small : 1536
---   Ollama nomic-embed-text        : 768   <-- default for local/offline use
---   Ollama mxbai-embed-large       : 1024
+-- EMBEDDING DIMENSIONS
+-- The vector(1536) columns below match OpenAI text-embedding-3-small (default).
+-- If you switch to a local Ollama embedding model, update the dimension to match:
 --
--- MIGRATION WARNING: changing EMBEDDING_DIMENSIONS after data is loaded requires
--- dropping and recreating the tables (ALTER COLUMN is not supported for vector type).
--- Set EMBEDDING_PROVIDER and EMBEDDING_MODEL in mcp.env before first run.
+--   EMBEDDING_PROVIDER  EMBEDDING_MODEL          Dimensions
+--   ------------------  -----------------------  ----------
+--   openai              text-embedding-3-small    1536  (default)
+--   openai              text-embedding-3-large    3072
+--   ollama              nomic-embed-text           768
+--   ollama              mxbai-embed-large         1024
+--   ollama              all-minilm                 384
+--   ollama              bge-m3                    1024
+--
+-- Change all occurrences of 1536 in this file to your model's dimension, then
+-- re-run the script (it drops and recreates tables) and re-run circuitron setup.
+-- WARNING: changing dimensions invalidates any previously ingested data.
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
@@ -39,7 +47,7 @@ CREATE TABLE crawled_pages (
     content text NOT NULL,
     metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
     source_id text NOT NULL,
-    embedding vector(768),
+    embedding vector(1536),
     created_at timestamptz DEFAULT now() NOT NULL,
     UNIQUE (url, chunk_number),
     FOREIGN KEY (source_id) REFERENCES sources(source_id)
@@ -50,7 +58,7 @@ CREATE INDEX idx_crawled_pages_metadata ON crawled_pages USING gin (metadata);
 CREATE INDEX idx_crawled_pages_source_id ON crawled_pages (source_id);
 
 CREATE OR REPLACE FUNCTION match_crawled_pages (
-    query_embedding vector(768),
+    query_embedding vector(1536),
     match_count int DEFAULT 10,
     filter jsonb DEFAULT '{}'::jsonb,
     source_filter text DEFAULT NULL
@@ -86,7 +94,7 @@ CREATE TABLE code_examples (
     summary text NOT NULL,
     metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
     source_id text NOT NULL,
-    embedding vector(768),
+    embedding vector(1536),
     created_at timestamptz DEFAULT now() NOT NULL,
     UNIQUE (url, chunk_number),
     FOREIGN KEY (source_id) REFERENCES sources(source_id)
@@ -97,7 +105,7 @@ CREATE INDEX idx_code_examples_metadata ON code_examples USING gin (metadata);
 CREATE INDEX idx_code_examples_source_id ON code_examples (source_id);
 
 CREATE OR REPLACE FUNCTION match_code_examples (
-    query_embedding vector(768),
+    query_embedding vector(1536),
     match_count int DEFAULT 10,
     filter jsonb DEFAULT '{}'::jsonb,
     source_filter text DEFAULT NULL
