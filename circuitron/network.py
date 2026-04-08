@@ -66,20 +66,50 @@ def _display_error(message: str, ui: Any | None = None) -> None:
             pass
 
 
+def _provider_ping_url() -> str | None:
+    """Return the URL to probe for the active provider, or ``None`` if local-only.
+
+    ``None`` means no internet check is needed (e.g. pure Ollama setup).
+    """
+    provider = settings.provider
+    if provider == "ollama":
+        # Ollama is local — probe the Ollama API directly, not the internet
+        return f"{settings.ollama_base_url}/api/tags"
+    if provider == "anthropic":
+        return "https://api.anthropic.com"
+    # Default: openai-agents and anything else
+    return "https://api.openai.com"
+
+
 def check_internet_connection() -> bool:
-    """Check for internet connectivity and print a message when absent.
+    """Check connectivity to the active provider's endpoint.
+
+    For ``ollama``, pings the local Ollama API instead of the internet.
+    For ``anthropic``, pings ``api.anthropic.com``.
+    For ``openai-agents`` (default), pings ``api.openai.com``.
 
     Returns:
-        ``True`` if :func:`is_connected` succeeds, otherwise ``False``.
+        ``True`` if the endpoint is reachable, otherwise ``False``.
 
     Example:
         >>> check_internet_connection()
         True
     """
-    if not is_connected():
-        _display_error(
-            "No internet connection detected. Please connect and try again."
-        )
+    url = _provider_ping_url()
+    if url is None:
+        return True  # fully local — no check needed
+
+    if not is_connected(url):
+        provider = settings.provider
+        if provider == "ollama":
+            _display_error(
+                f"Ollama is not reachable at {settings.ollama_base_url}. "
+                "Make sure Ollama is running: ollama serve"
+            )
+        else:
+            _display_error(
+                "No internet connection detected. Please connect and try again."
+            )
         return False
     return True
 

@@ -32,6 +32,11 @@ def get_provider(settings: "Settings") -> LLMProvider:
 
         return AnthropicProvider()
 
+    if settings.provider == "ollama":
+        from .ollama import OllamaProvider
+
+        return OllamaProvider()
+
     raise ValueError(
         f"Unknown provider {settings.provider!r}. "
         "Set CIRCUITRON_PROVIDER to a supported value "

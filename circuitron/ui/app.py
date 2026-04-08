@@ -288,20 +288,25 @@ class TerminalUI:
                 token_summary = token_usage_aggregator.get_summary()
                 from ..cost_estimator import estimate_cost_usd, estimate_cost_usd_for_model
 
-                total_cost, used_default, per_model = estimate_cost_usd(token_summary)
-                # If per-model pricing failed (or was zero), fall back to the active model
-                if total_cost == 0.0:
-                    from ..config import settings as cfg
-                    # Use code_generation_model as representative of main cost; user can change via /model
+                from ..config import settings as cfg
+                from ..cost_estimator import is_local_provider
+                total_cost, used_default, per_model = estimate_cost_usd(
+                    token_summary, provider=cfg.provider
+                )
+                # If per-model pricing failed (or was zero), fall back to the active model.
+                # Skip the fallback for local providers — $0 is intentional there.
+                if total_cost == 0.0 and not is_local_provider(cfg.provider):
                     model_name = str(
                         getattr(cfg, "code_generation_model", None)
                         or getattr(cfg, "planning_model", "o4-mini")
                     )
                     total_cost2, used_default2 = estimate_cost_usd_for_model(token_summary, model_name)
-                    # Prefer non-zero fallback
                     if total_cost2 > 0.0 or used_default:
                         total_cost, used_default = total_cost2, used_default2
-                self.display_summary_stats(elapsed, token_summary, total_cost, used_default)
+                self.display_summary_stats(
+                    elapsed, token_summary, total_cost, used_default,
+                    is_local=is_local_provider(cfg.provider),
+                )
             except Exception:
                 # Never break shutdown flow if summary fails
                 pass
@@ -312,6 +317,7 @@ class TerminalUI:
         token_summary: Mapping[str, Any],
         total_cost_usd: float,
         used_default_prices: bool,
+        is_local: bool = False,
     ) -> None:
         """Render a compact summary panel with time, tokens, and cost."""
         from .components import panel as panel_comp
@@ -327,12 +333,13 @@ class TerminalUI:
         seconds = elapsed_seconds % 60
         time_str = f"{hours:02d}:{minutes:02d}:{seconds:05.2f}"
 
+        cost_str = "local (Ollama)" if is_local else f"${total_cost_usd:.4f}"
         lines = [
             f"Time taken: {time_str}",
             f"Tokens: in={i:,} out={o:,} total={t:,}",
-            f"Estimated cost: ${total_cost_usd:.4f}",
+            f"Estimated cost: {cost_str}",
         ]
-        if used_default_prices:
+        if used_default_prices and not is_local:
             lines.append("(Note: Missing local pricing for some/all models; cost may be 0)")
 
         lines.append("")

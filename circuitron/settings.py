@@ -58,6 +58,12 @@ class Settings:
     provider: str = field(
         default_factory=lambda: os.getenv("CIRCUITRON_PROVIDER", "openai-agents")
     )
+    ollama_base_url: str = field(
+        default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    )
+    available_providers: list[str] = field(
+        default_factory=lambda: ["openai-agents", "anthropic", "ollama"]
+    )
     dev_mode: bool = False
     footprint_search_enabled: bool = True
 

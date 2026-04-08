@@ -42,6 +42,26 @@ class AnthropicTool:
 
 
 @dataclass
+class AnthropicMCPServerConfig:
+    """Lightweight MCP server descriptor for the Anthropic provider.
+
+    Stores the connection parameters needed to pass to the Anthropic beta
+    messages API.  ``connect`` and ``cleanup`` are no-ops because the
+    Anthropic SDK manages the SSE connection per-request.
+    """
+
+    name: str
+    url: str
+    timeout: float
+
+    async def connect(self) -> None:  # noqa: D401
+        """No-op: Anthropic manages the connection per API call."""
+
+    async def cleanup(self) -> None:  # noqa: D401
+        """No-op: nothing to tear down."""
+
+
+@dataclass
 class AnthropicAgentConfig:
     """Stores the full configuration for one Anthropic-backed agent."""
 
@@ -108,12 +128,18 @@ class AnthropicProvider:
         self,
         name: str,
         instructions: str,
-        tools: list[Any],
-        output_type: type[Any],
-        model: str,
+        tools: list[Any] | None = None,
+        output_type: type[Any] = object,
+        model: str = "",
         **kwargs: Any,
     ) -> AnthropicAgentConfig:
-        """Build an :class:`AnthropicAgentConfig` from provider-agnostic args."""
+        """Build an :class:`AnthropicAgentConfig` from provider-agnostic args.
+
+        ``model_settings`` kwargs that are :class:`~circuitron.provider.ModelConfig`
+        instances are stored as-is; the agentic loop reads them at run time.
+        ``input_guardrails`` and other OpenAI-SDK-specific kwargs are accepted
+        but silently ignored.
+        """
         wrapped = [
             t if isinstance(t, AnthropicTool) else self._make_tool(t)
             for t in (tools or [])
@@ -149,6 +175,21 @@ class AnthropicProvider:
         api_tools = [t.to_api_dict() for t in cfg.tools] + [output_tool]
         tool_map = {t.name: t for t in cfg.tools}
 
+        # Extract MCP server configs from extra kwargs
+        mcp_servers_raw = cfg.extra.get("mcp_servers") or []
+        mcp_for_api = [
+            {"type": "url", "url": s.url, "name": s.name}
+            for s in mcp_servers_raw
+            if isinstance(s, AnthropicMCPServerConfig)
+        ]
+        use_mcp = bool(mcp_for_api)
+
+        # Respect ModelConfig.parallel_tool_calls if provided
+        from ..provider import ModelConfig as _ModelConfig
+        mc: _ModelConfig | None = cfg.extra.get("model_settings")
+        if not isinstance(mc, _ModelConfig):
+            mc = None
+
         for turn in range(max_turns):
             # Force the result tool on the last available turn
             tool_choice: dict[str, Any] = (
@@ -157,7 +198,7 @@ class AnthropicProvider:
                 else {"type": "any"}
             )
 
-            response = await self._client.messages.create(
+            create_kwargs: dict[str, Any] = dict(
                 model=cfg.model,
                 system=cfg.instructions,
                 messages=messages,
@@ -165,6 +206,14 @@ class AnthropicProvider:
                 tool_choice=tool_choice,
                 max_tokens=4096,
             )
+            if use_mcp:
+                create_kwargs["mcp_servers"] = mcp_for_api
+                response = await self._client.beta.messages.create(
+                    **create_kwargs,
+                    betas=["mcp-client-2025-04-04"],
+                )
+            else:
+                response = await self._client.messages.create(**create_kwargs)
             raw_responses.append(_RawResponse(model=cfg.model, usage=response.usage))
 
             # Scan content blocks
@@ -225,18 +274,15 @@ class AnthropicProvider:
         """Return :class:`anthropic.APIError` for use in ``except`` clauses."""
         return self._anthropic.APIError  # type: ignore[no-any-return]
 
-    def make_mcp_server(self, url: str, timeout: float) -> Any:
-        """Return an Anthropic-compatible MCP server stub.
+    def make_mcp_server(self, url: str, timeout: float) -> AnthropicMCPServerConfig:
+        """Return an :class:`AnthropicMCPServerConfig` for the given SSE endpoint.
 
-        Full MCP integration for Anthropic requires ``anthropic>=0.49.0`` and
-        is wired differently from the OpenAI Agents SDK.  This stub is a
-        placeholder; pass MCP server objects via ``extra["mcp_servers"]`` in
-        ``create_agent`` when needed.
+        The config object is passed to ``create_agent`` via ``mcp_servers=``
+        and forwarded to the Anthropic beta messages API in ``run_agent``.
+        Connection management is per-request, so ``connect``/``cleanup`` are
+        no-ops.
         """
-        raise NotImplementedError(
-            "Anthropic MCP integration is handled differently from the OpenAI "
-            "Agents SDK.  Use the anthropic SDK's built-in MCP support directly."
-        )
+        return AnthropicMCPServerConfig(name="skidl_docs", url=url, timeout=timeout)
 
     def make_guardrail(self, check_fn: Any) -> Any:
         """Return ``check_fn`` unchanged.
@@ -392,4 +438,9 @@ def _extract_json(text: str) -> str:
     return text
 
 
-__all__ = ["AnthropicProvider", "AnthropicAgentConfig", "AnthropicRunResult"]
+__all__ = [
+    "AnthropicProvider",
+    "AnthropicAgentConfig",
+    "AnthropicMCPServerConfig",
+    "AnthropicRunResult",
+]

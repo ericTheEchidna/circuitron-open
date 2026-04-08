@@ -69,7 +69,24 @@ if not PRICES and os.getenv("CIRCUITRON_DISABLE_BUILTIN_PRICES") not in ("1", "t
         PRICES = {}
 
 
-def estimate_cost_usd(token_summary: Mapping[str, Any]) -> Tuple[float, bool, Dict[str, float]]:
+def is_local_provider(provider: str = "") -> bool:
+    """Return ``True`` if *provider* runs locally and has no per-token cost.
+
+    Args:
+        provider: Provider slug (e.g. ``"ollama"``).  When empty the active
+            provider from ``settings`` is used.
+    """
+    if not provider:
+        try:
+            from .config import settings as _s
+
+            provider = _s.provider
+        except Exception:
+            return False
+    return provider == "ollama"
+
+
+def estimate_cost_usd(token_summary: Mapping[str, Any], provider: str = "") -> Tuple[float, bool, Dict[str, float]]:
     """Estimate USD cost for a token usage summary.
 
     Args:
@@ -82,6 +99,10 @@ def estimate_cost_usd(token_summary: Mapping[str, Any]) -> Tuple[float, bool, Di
         (total_cost, used_default_zero_prices, per_model_breakdown)
         Where per_model_breakdown maps model -> cost.
     """
+    # Local providers (Ollama) have zero cost by definition — not "unknown"
+    if is_local_provider(provider):
+        return 0.0, False, {}
+
     def rate(model: str, kind: str) -> float:
         return float(PRICES.get(model, {}).get(kind, 0.0))
 
@@ -108,7 +129,7 @@ def price_source() -> str:
     return _PRICE_SOURCE
 
 
-__all__ = ["estimate_cost_usd", "estimate_cost_usd_for_model", "price_source"]
+__all__ = ["estimate_cost_usd", "estimate_cost_usd_for_model", "is_local_provider", "price_source"]
 
 
 def estimate_cost_usd_for_model(token_summary: Mapping[str, Any], model: str) -> Tuple[float, bool]:
