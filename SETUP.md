@@ -2,7 +2,7 @@
 
 This is a dedicated guide to getting the dependencies for the project set up.
 
-Tip: After you configure and start the MCP server (Supabase + Neo4j credentials in `mcp.env`), you can initialize Circuitron’s knowledge bases directly via the built-in command:
+Tip: After you configure and start the MCP server (see [Option A](#option-a-local-postgres-pgvector) for local pgvector or [Option B](#option-b-supabase-cloud) for Supabase cloud), you can initialize Circuitron’s knowledge bases directly via the built-in command:
 
 ```bash
 circuitron setup
@@ -14,6 +14,8 @@ This is idempotent and should be run once per environment. It uses the MCP tools
 
 1. [Docker Setup](#docker-setup)
 2. [MCP Server Setup](#mcp-server-setup)
+   - [Option A: Local Postgres (pgvector) — no Supabase account](#option-a-local-postgres-pgvector)
+   - [Option B: Supabase cloud](#option-b-supabase-cloud)
 3. [Setting up AI Assistant for Knowledge Base Population](#setting-up-ai-assistant-for-knowledge-base-population)
 4. [Populating Knowledge Bases](#populating-knowledge-bases)
 5. [Additional Notes on OpenAI API](#additional-notes-on-openai-api)
@@ -42,7 +44,87 @@ npm install https://github.com/nturley/netlistsvg
 
 ## MCP Server Setup
 
-Next, you'll need to follow the following steps to set up the MCP server:
+There are two ways to provide the vector store for the MCP server. Choose one.
+
+---
+
+### Option A: Local Postgres (pgvector)
+
+Use this if you already run PostgreSQL (e.g. on a home server) and want to avoid
+creating a Supabase account.
+
+**Prerequisites**
+
+- PostgreSQL 14+ with the [pgvector](https://github.com/pgvector/pgvector) extension.
+  On Ubuntu/Debian: `sudo apt install postgresql-<ver>-pgvector`
+- The `circuitron-mcp-local` Docker image (built below).
+
+**Step A1 — Create the database and schema**
+
+```bash
+# Create a database (if it doesn't exist yet)
+psql -U postgres -c "CREATE DATABASE circuitron;"
+
+# Apply the schema (creates tables + vector search functions, no Supabase required)
+psql -U postgres -d circuitron -f setup_pgvector_local.sql
+```
+
+**Step A2 — Build the patched MCP image**
+
+The upstream `circuitron-mcp` image uses the Supabase Python client exclusively.
+A minimal patch in `mcp/utils_local.py` adds a psycopg2 adapter that activates
+when `DATABASE_URL` is set. Build it once:
+
+```bash
+docker build -t circuitron-mcp-local ./mcp
+```
+
+**Step A3 — Create `mcp.env`**
+
+Copy `mcp.env.example` to `mcp.env` and fill in the `DATABASE_URL` block:
+
+```env
+TRANSPORT=sse
+HOST=0.0.0.0
+PORT=8051
+OPENAI_API_KEY=<your OpenAI API key>
+MODEL_CHOICE=gpt-5-nano
+USE_CONTEXTUAL_EMBEDDINGS=true
+USE_HYBRID_SEARCH=true
+USE_AGENTIC_RAG=true
+USE_RERANKING=true
+USE_KNOWLEDGE_GRAPH=true
+LLM_MAX_CONCURRENCY=2
+LLM_REQUEST_DELAY=0.5
+
+# Local Postgres — uncomment and fill in:
+DATABASE_URL=postgresql://<user>:<password>@<host>:5432/circuitron
+
+# Neo4j (local or cloud):
+NEO4J_URI=bolt://host.docker.internal:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=<your Neo4j password>
+```
+
+**Step A4 — Run the patched server**
+
+```bash
+docker run --env-file mcp.env -p 8051:8051 circuitron-mcp-local
+```
+
+Then run `circuitron setup` (or type `/setup` in the UI) to populate the knowledge
+bases. No Supabase credentials are needed.
+
+> **Note on USE_KNOWLEDGE_GRAPH**: the knowledge graph feature still requires Neo4j.
+> For a fully local stack, run Neo4j locally and set
+> `NEO4J_URI=bolt://host.docker.internal:7687`. To disable the knowledge graph
+> entirely, set `USE_KNOWLEDGE_GRAPH=false` in `mcp.env`.
+
+---
+
+### Option B: Supabase cloud
+
+Use this if you prefer a managed cloud setup.
 
 ### Step 1: Get API credentials for the MCP server
 
@@ -125,6 +207,8 @@ INFO: Uvicorn running on http://0.0.0.0:8051⁠ (Press CTRL+C to quit)
 2025-08-01 11:54:18
 INFO: 172.17.0.1:48912 - "GET /sse HTTP/1.1" 200 OK
 ```
+
+---
 
 ## Setting up AI Assistant for Knowledge Base Population (Optional in case `/setup` does not work)
 

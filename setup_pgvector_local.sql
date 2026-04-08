@@ -1,6 +1,13 @@
 -- Local pgvector schema for Circuitron
 -- Equivalent to setup_supabase.sql but without RLS (not needed for direct psycopg2 connections)
 --
+-- Run once against your local Postgres instance:
+--   psql -h <host> -U <user> -d <dbname> -f setup_pgvector_local.sql
+--
+-- Prerequisites:
+--   1. pgvector extension available (apt: postgresql-<ver>-pgvector)
+--   2. Database already created: CREATE DATABASE circuitron;
+--
 -- Embedding dimensions by provider:
 --   OpenAI text-embedding-3-small : 1536
 --   Ollama nomic-embed-text        : 768   <-- default for local/offline use
@@ -12,6 +19,7 @@
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- Drop tables if they exist (safe to re-run)
 DROP TABLE IF EXISTS crawled_pages;
 DROP TABLE IF EXISTS code_examples;
 DROP TABLE IF EXISTS sources;
