@@ -75,6 +75,81 @@ The MCP server is a separate container inherited from upstream. Its internal dep
 
 Until the MCP server is abstracted, running the full pipeline requires OpenAI API access (for the MCP server), Supabase, and Neo4j — even if the main app is running on Anthropic.
 
+## Running locally (no cloud)
+
+Circuitron can run with **zero cloud dependencies** using Ollama for the LLM
+agents, pgvector on an existing Postgres host for the RAG vector store, and
+local Neo4j for the knowledge graph.
+
+> **Note:** The MCP server still uses OpenAI `text-embedding-3-small` for vector
+> embeddings.  An OpenAI API key is therefore still required for `circuitron setup`
+> and for documentation retrieval during runs.  Everything else (LLM inference,
+> vector store, graph database) is local.
+
+**Prerequisites**
+
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- [Ollama](https://ollama.com/) running locally or on a reachable host (e.g. `miso`)
+  with a tool-capable model pulled: `ollama pull qwen2.5-coder:32b`
+- PostgreSQL with the [pgvector](https://github.com/pgvector/pgvector) extension
+  (`sudo apt install postgresql-<ver>-pgvector`)
+- An OpenAI API key (embeddings only)
+
+**Steps**
+
+1. **Create the Postgres database and schema**
+
+   ```bash
+   psql -U postgres -c "CREATE DATABASE circuitron;"
+   psql -U postgres -d circuitron -f setup_pgvector_local.sql
+   ```
+
+2. **Build the patched MCP image** (adds pgvector support; one-time)
+
+   ```bash
+   docker build -t circuitron-mcp-local ./mcp
+   ```
+
+3. **Copy and configure the example files**
+
+   ```bash
+   cp .env.local.example .env
+   cp mcp.env.local.example mcp.env
+   ```
+
+   In `.env`: set `OLLAMA_BASE_URL` if Ollama is on a remote host.  
+   In `mcp.env`: set `OPENAI_API_KEY` and `DATABASE_URL` (your Postgres DSN).
+
+4. **Start all services**
+
+   ```bash
+   docker compose up -d
+   ```
+
+   This starts Neo4j and the MCP server.  The KiCad container is managed
+   automatically by Circuitron during each run.
+
+5. **Pull the KiCad image**
+
+   ```bash
+   docker pull ghcr.io/shaurya-sethi/circuitron-kicad:latest
+   ```
+
+6. **Install Circuitron and populate knowledge bases**
+
+   ```bash
+   pip install -e .
+   circuitron setup
+   ```
+
+7. **Run a design**
+
+   ```bash
+   circuitron "design a voltage divider"
+   ```
+
+---
+
 ## Prerequisites
 
 - **Python 3.10+** (developed with 3.12)
@@ -190,6 +265,11 @@ This crawls SKiDL documentation and parses the SKiDL repository to populate the 
 ## Usage
 
 With the MCP server running and Docker images available:
+
+> **Important Prerequisites:**
+> - **Neo4j Database:** Circuitron checks Neo4j reachability at startup (when `NEO4J_URI` is set in `.env`) and exits with a clear error if it is unreachable. Start it with `docker compose up -d neo4j` or disable the knowledge graph with `USE_KNOWLEDGE_GRAPH=false` in `mcp.env`.
+> - **Supabase Knowledge Base (cloud path):** On the free tier, Supabase projects are paused after a few days of inactivity. Resume the project before running Circuitron. Alternatively, use the local pgvector path (see *Running locally* above).
+> - **MCP Server Preflight Checks:** Circuitron automatically detects if the MCP server is not running and will notify you to start it before proceeding.
 
 ```bash
 # Interactive mode

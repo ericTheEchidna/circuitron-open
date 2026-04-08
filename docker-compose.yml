@@ -1,37 +1,24 @@
 # Circuitron local services
 #
-# Start Neo4j:
-#   docker compose up -d neo4j
+# Quick start (local / no-cloud stack):
+#   cp .env.local.example .env          # fill in OLLAMA_BASE_URL + miso Postgres
+#   cp mcp.env.local.example mcp.env    # fill in DATABASE_URL
+#   docker build -t circuitron-mcp-local ./mcp   # build patched MCP image once
+#   docker compose up -d
+#   circuitron setup
 #
-# Stop and keep data:
-#   docker compose stop neo4j
+# Cloud (Supabase + AuraDB) stack — skip the build step and set MCP_IMAGE to the
+# upstream image in your .env:
+#   MCP_IMAGE=ghcr.io/shaurya-sethi/circuitron-mcp:latest
 #
-# Full teardown (deletes graph data):
-#   docker compose down -v
+# Individual service commands:
+#   docker compose up -d neo4j           # start only Neo4j
+#   docker compose stop                  # stop all, keep data
+#   docker compose down -v               # teardown + delete volumes
 
 services:
-  pgvector:
-    image: pgvector/pgvector:pg16
-    container_name: circuitron-pgvector
-    environment:
-      POSTGRES_USER: captain
-      POSTGRES_PASSWORD: memex2026
-      POSTGRES_DB: circuitron
-    ports:
-      - "5434:5432"   # 5433 is taken by the miso memex postgres
-    volumes:
-      - pgvector_data:/var/lib/postgresql/data
-    restart: unless-stopped
 
-  ollama:
-    image: ollama/ollama
-    container_name: circuitron-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-
+  # ── Neo4j knowledge graph ──────────────────────────────────────────────────
   neo4j:
     image: neo4j:5-community
     environment:
@@ -49,20 +36,25 @@ services:
       retries: 5
       start_period: 30s
 
-  mcp-local:
-    build:
-      context: .
-      dockerfile: mcp_server/Dockerfile
-    container_name: circuitron-mcp-local
+  # ── MCP server (RAG + knowledge graph tools) ───────────────────────────────
+  # Default image: upstream (cloud / Supabase path).
+  # Local pgvector path: build the patched image first, then set
+  #   MCP_IMAGE=circuitron-mcp-local in .env.
+  mcp-server:
+    image: ${MCP_IMAGE:-ghcr.io/shaurya-sethi/circuitron-mcp:latest}
+    env_file: mcp.env
     ports:
       - "8051:8051"
     depends_on:
-      - pgvector
-      - ollama
-    env_file: mcp.env
+      neo4j:
+        condition: service_healthy
     restart: unless-stopped
 
+# ── Notes on the KiCad container ───────────────────────────────────────────
+# The KiCad image (ghcr.io/shaurya-sethi/circuitron-kicad:latest) is managed
+# directly by Circuitron via the Docker SDK — it is started and stopped per
+# design run, not as a persistent compose service.  Pull it once with:
+#   docker pull ghcr.io/shaurya-sethi/circuitron-kicad:latest
+
 volumes:
-  pgvector_data:
-  ollama_data:
   neo4j_data:
