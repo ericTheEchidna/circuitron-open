@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip show:*)",
+      "Bash(ls *.env)",
+      "mcp__memex-api__memex_list_projects",
+      "mcp__memex-api__memex_create_task"
+    ]
+  }
+}
