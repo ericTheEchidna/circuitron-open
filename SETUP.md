@@ -1,4 +1,4 @@
-# Circuitron Setup Guide
+# circuitron-open Setup Guide
 
 This is a dedicated guide to getting the dependencies for the project set up.
 
@@ -44,11 +44,13 @@ npm install https://github.com/nturley/netlistsvg
 
 Next, you'll need to follow the following steps to set up the MCP server:
 
-### Step 1: Get OpenAI API Key
+### Step 1: Get API credentials for the MCP server
 
-First obtain an OpenAI API key from https://platform.openai.com/signup.
+The MCP server requires an OpenAI API key for its internal LLM and embedding calls. This is separate from the main app's LLM provider — you need it regardless of which provider (`openai-agents` or `anthropic`) you use for the main pipeline.
 
-**Note:** You will need to top up your account with some credits to use the API.
+Obtain an OpenAI API key from https://platform.openai.com/signup. You will need to add some credits to the account.
+
+> **If you are using Anthropic for the main app:** you still need OpenAI here, for the MCP server only. This limitation will be removed when MCP server provider abstraction is implemented.
 
 ### Step 2: Create Supabase Account and Project
 
@@ -191,33 +193,35 @@ Refresh procedure (clean rebuild):
 
 Important: Always delete the existing SKiDL knowledge base contents before repopulating to avoid mixing old and new documentation.
 
-## Additional Notes on OpenAI API
+## Additional Notes on LLM Provider Configuration
 
-### Organization Verification
+### Using Anthropic Claude (no OpenAI required for the main app)
 
-You'll need to do organization verification to be able to use the reasoning models like o4-mini (which is what circuitron makes use of by default). This is their policy to prevent the use of their model's responses to train other models in a teacher-student way.
+Set `CIRCUITRON_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=<key>` in your `.env`. No OpenAI key is needed for the main pipeline. Note: the MCP server container still requires `OPENAI_API_KEY` in `mcp.env` until MCP server provider abstraction is implemented.
 
-If you don't want to do this, you will need to navigate to `settings.py` in the repository and change the default model to gpt-4.1 or gpt-4.1-mini like so:
+Update the default model names in `circuitron/settings.py` to Anthropic model IDs (e.g. `claude-sonnet-4-5`, `claude-opus-4-5`) when using this provider.
+
+### Using OpenAI (upstream default)
+
+You will need an OpenAI API key. Set `CIRCUITRON_PROVIDER=openai-agents` (this is the default if unset) and `OPENAI_API_KEY=<key>` in your `.env`.
+
+#### Organization Verification
+
+Reasoning models like `o4-mini` require [organization verification](https://help.openai.com/en/articles/10910291-api-organization-verification) on OpenAI. If you prefer to skip this, change the default model in `circuitron/settings.py` to `gpt-4.1`:
 
 ```python
 code_generation_model: str = field(default="gpt-4.1")
 ```
 
-**Note:** This might degrade overall performance of the system if you use gpt-4.1-mini or nano, OR it might significantly increase costs if you use gpt-4.1 and you might even hit rate limits if you are on tier-1 (5 usd worth of credits).
+Using `gpt-4.1-mini` or `nano` may reduce performance; `gpt-4.1` may increase cost and hit rate limits on low-credit accounts.
 
-Hence, both to save costs and to ensure best performance, I recommend you do the organization verification and use o4-mini as the default model.
+#### Cost Optimization (OpenAI)
 
-Please follow this guide for the same: https://help.openai.com/en/articles/10910291-api-organization-verification
-
-It won't take more than a few minutes.
-
-### Cost Optimization
-
-Lastly, you might wanna consider checking the option to share your data (the requests and responses when you use their api) as it will grant a lot of free daily usage. This allowed me to limit the entire cost of development to under 3 dollars (It's been 2 months and I still haven't been able to use the full 5 usd worth of creds).
+Enabling data sharing on OpenAI's platform grants additional free daily usage and reduces effective cost significantly.
 
 ---
 
-Hope this helps you get started with Circuitron! If you have any questions or run into issues, feel free to reach out in the Discussions section of the GitHub repository.
+Hope this helps you get started with circuitron-open! If you have any questions or run into issues, feel free to open an issue on the GitHub repository.
 
 ## Pricing and Cost Estimation
 
