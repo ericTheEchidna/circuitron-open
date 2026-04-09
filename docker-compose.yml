@@ -1,0 +1,16 @@
+services:
+  pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: circuitron-pgvector
+    environment:
+      POSTGRES_USER: captain
+      POSTGRES_PASSWORD: memex2026
+      POSTGRES_DB: circuitron
+    ports:
+      - "5434:5432"   # 5433 is taken by the miso memex postgres
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgvector_data:
