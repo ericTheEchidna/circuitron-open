@@ -12,5 +12,28 @@ services:
       - pgvector_data:/var/lib/postgresql/data
     restart: unless-stopped
 
+  ollama:
+    image: ollama/ollama
+    container_name: circuitron-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+  mcp-local:
+    build:
+      context: .
+      dockerfile: mcp_server/Dockerfile
+    container_name: circuitron-mcp-local
+    ports:
+      - "8051:8051"
+    depends_on:
+      - pgvector
+      - ollama
+    env_file: mcp.env
+    restart: unless-stopped
+
 volumes:
   pgvector_data:
+  ollama_data:

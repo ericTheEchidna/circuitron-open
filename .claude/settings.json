@@ -4,7 +4,10 @@
       "Bash(pip show:*)",
       "Bash(ls *.env)",
       "mcp__memex-api__memex_list_projects",
-      "mcp__memex-api__memex_create_task"
+      "mcp__memex-api__memex_create_task",
+      "Bash(mkdir -p /home/eric/source/circuitron-open/mcp_server/tools)",
+      "Bash(mkdir -p /home/eric/source/circuitron-open/mcp_server/data)",
+      "Bash(pip install:*)"
     ]
   }
 }
