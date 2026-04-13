@@ -1,57 +1,6 @@
 services:
-  pgvector:
-    image: pgvector/pgvector:pg16
-    container_name: circuitron-pgvector
-    environment:
-      POSTGRES_USER: captain
-      POSTGRES_PASSWORD: memex2026
-      POSTGRES_DB: circuitron
-    ports:
-      - "5434:5432"   # 5433 is taken by the miso memex postgres
-    volumes:
-      - pgvector_data:/var/lib/postgresql/data
-      # Auto-apply local schema on first startup (only runs when data dir is empty)
-      - ./setup_pgvector_local.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U captain -d circuitron"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
-  ollama:
-    image: ollama/ollama
-    container_name: circuitron-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-    restart: unless-stopped
-
-  # One-shot service: pulls the embedding model then exits.
-  # mcp-local depends on this completing successfully so it never starts
-  # with a missing model.
-  model-pull:
-    image: ollama/ollama
-    container_name: circuitron-model-pull
-    entrypoint: >
-      sh -c "
-        until curl -sf http://ollama:11434/api/tags; do
-          echo 'waiting for ollama...'; sleep 2;
-        done &&
-        ollama pull nomic-embed-text
-      "
-    environment:
-      - OLLAMA_HOST=http://ollama:11434
-    depends_on:
-      ollama:
-        condition: service_healthy
-    restart: "no"
+  # Ollama and pgvector are provided by miso — no need to run them here.
+  # mcp-local reaches them via host.docker.internal (mapped by extra_hosts below).
 
   mcp-local:
     build:
@@ -60,14 +9,10 @@ services:
     container_name: circuitron-mcp-local
     ports:
       - "8051:8051"
-    depends_on:
-      pgvector:
-        condition: service_healthy
-      model-pull:
-        condition: service_completed_successfully
     env_file: mcp.env
+    extra_hosts:
+      # Lets the container resolve host.docker.internal → the host machine,
+      # so OLLAMA_URL=http://host.docker.internal:11434 and POSTGRES_URL
+      # pointing at the miso pgvector both work without a custom network.
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
-
-volumes:
-  pgvector_data:
-  ollama_data:
