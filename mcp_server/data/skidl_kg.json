@@ -1,0 +1,422 @@
+[
+  {
+    "name": "Net",
+    "type": "class",
+    "module": "skidl",
+    "signature": "Net(name=None, circuit=None, *args, **attribs)",
+    "doc": "Represents a named electrical connection point. Fundamental building block for wiring components together. Multiple pins connected to the same Net are electrically equivalent.",
+    "attributes": ["pins", "nets", "drive", "netclasses", "stub", "name"]
+  },
+  {
+    "name": "Net.connect",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Net.connect(*pins_nets_buses)",
+    "doc": "Connect pins, nets, or buses to this net. Equivalent to using the += operator. Merges nets that share a connection.",
+    "parent": "Net"
+  },
+  {
+    "name": "Net.disconnect",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Net.disconnect(pin)",
+    "doc": "Disconnect a pin from this net.",
+    "parent": "Net"
+  },
+  {
+    "name": "Net.get",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Net.get(name, circuit=None)",
+    "doc": "Get an existing Net by name from the default circuit.",
+    "parent": "Net"
+  },
+  {
+    "name": "Net.fetch",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Net.fetch(name, circuit=None)",
+    "doc": "Fetch an existing Net by name, or create it if it doesn't exist.",
+    "parent": "Net"
+  },
+  {
+    "name": "Net.is_attached",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Net.is_attached(pin_net_bus)",
+    "doc": "Return True if a pin, net, or bus is attached to this net.",
+    "parent": "Net"
+  },
+  {
+    "name": "Net.merge_names",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Net.merge_names()",
+    "doc": "Combine the names of merged nets into a single name.",
+    "parent": "Net"
+  },
+  {
+    "name": "Pin",
+    "type": "class",
+    "module": "skidl",
+    "signature": "Pin(num=None, name=None, func=Pin.UNSPEC, do_erc=True, **attribs)",
+    "doc": "Represents an individual component pin. Connects to nets to form circuits. Supports & (serial), | (parallel), and * (copy) operators.",
+    "attributes": ["num", "name", "func", "net", "part", "do_erc"]
+  },
+  {
+    "name": "Pin.connect",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Pin.connect(*pins_nets_buses)",
+    "doc": "Connect this pin to nets, other pins, or buses.",
+    "parent": "Pin"
+  },
+  {
+    "name": "Pin.is_connected",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Pin.is_connected()",
+    "doc": "Return True if this pin is connected to a net.",
+    "parent": "Pin"
+  },
+  {
+    "name": "Pin.get_nets",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Pin.get_nets()",
+    "doc": "Return a list of nets this pin is connected to.",
+    "parent": "Pin"
+  },
+  {
+    "name": "Part",
+    "type": "class",
+    "module": "skidl",
+    "signature": "Part(lib=None, name=None, dest=NETLIST, tool=None, connections=None, part_defn=None, circuit=None, **attribs)",
+    "doc": "Represents an electronic component. Instantiate with a library and part name. Access pins by name or number using bracket notation: part['A1'] or part[1].",
+    "attributes": ["ref", "value", "footprint", "pins", "lib", "name", "description"]
+  },
+  {
+    "name": "Part.copy",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Part.copy(num_copies=1, dest=NETLIST, **attribs)",
+    "doc": "Make one or more copies of this part. Returns a list of Part objects.",
+    "parent": "Part"
+  },
+  {
+    "name": "Part.get_pins",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Part.get_pins(*pin_ids, **criteria)",
+    "doc": "Get pins from this part by name, number, or attribute criteria.",
+    "parent": "Part"
+  },
+  {
+    "name": "Part.make_unit",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Part.make_unit(label, *pin_ids)",
+    "doc": "Create a named unit from a subset of the part's pins (for multi-unit parts like logic gates).",
+    "parent": "Part"
+  },
+  {
+    "name": "Part.is_connected",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Part.is_connected()",
+    "doc": "Return True if any pin of this part is connected to a net.",
+    "parent": "Part"
+  },
+  {
+    "name": "Bus",
+    "type": "class",
+    "module": "skidl",
+    "signature": "Bus(name, *args, **attribs)",
+    "doc": "A collection of related nets (e.g., a data bus). Access individual nets with indexing: bus[0], bus[2:4]. Width is determined by args.",
+    "attributes": ["name", "width"]
+  },
+  {
+    "name": "Bus.connect",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Bus.connect(*pins_nets_buses)",
+    "doc": "Connect pins, nets, or other buses to this bus (positionally matched).",
+    "parent": "Bus"
+  },
+  {
+    "name": "Bus.insert",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Bus.insert(index, *nets)",
+    "doc": "Insert nets into the bus at the given index.",
+    "parent": "Bus"
+  },
+  {
+    "name": "Bus.extend",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Bus.extend(*nets_buses)",
+    "doc": "Extend the bus by appending additional nets or buses.",
+    "parent": "Bus"
+  },
+  {
+    "name": "Circuit",
+    "type": "class",
+    "module": "skidl",
+    "signature": "Circuit(**attribs)",
+    "doc": "Central container for an entire SKiDL design. Manages parts, nets, and buses. By default, all parts and nets are added to the default_circuit singleton.",
+    "attributes": ["parts", "nets", "buses", "hierarchy", "name"]
+  },
+  {
+    "name": "Circuit.ERC",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Circuit.ERC()",
+    "doc": "Run Electrical Rules Check on the circuit. Reports unconnected pins, conflicting drives, etc.",
+    "parent": "Circuit"
+  },
+  {
+    "name": "Circuit.generate_netlist",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Circuit.generate_netlist(file_=None, tool=None)",
+    "doc": "Generate a netlist file from the circuit. Supports KiCad and other formats.",
+    "parent": "Circuit"
+  },
+  {
+    "name": "Circuit.generate_pcb",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Circuit.generate_pcb(file_=None)",
+    "doc": "Generate a PCB layout file from the circuit netlist.",
+    "parent": "Circuit"
+  },
+  {
+    "name": "Circuit.generate_schematic",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Circuit.generate_schematic(file_=None)",
+    "doc": "Generate a schematic file from the circuit.",
+    "parent": "Circuit"
+  },
+  {
+    "name": "Circuit.generate_svg",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Circuit.generate_svg(file_=None, split_files=False)",
+    "doc": "Generate an SVG schematic preview of the circuit.",
+    "parent": "Circuit"
+  },
+  {
+    "name": "Circuit.reset",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Circuit.reset()",
+    "doc": "Reset the circuit to an empty state, removing all parts, nets, and buses.",
+    "parent": "Circuit"
+  },
+  {
+    "name": "Circuit.add_parts",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Circuit.add_parts(*parts)",
+    "doc": "Add one or more Part instances to this circuit.",
+    "parent": "Circuit"
+  },
+  {
+    "name": "Circuit.get_nets",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Circuit.get_nets()",
+    "doc": "Return a list of all nets in the circuit.",
+    "parent": "Circuit"
+  },
+  {
+    "name": "Interface",
+    "type": "class",
+    "module": "skidl",
+    "signature": "Interface(**kwargs)",
+    "doc": "A named bundle of nets, buses, and pins. Used to create reusable sub-circuit interfaces. Inherits from dict. Buses are automatically expanded into indexed nets.",
+    "attributes": []
+  },
+  {
+    "name": "Interface.connect",
+    "type": "method",
+    "module": "skidl",
+    "signature": "Interface.connect(interface)",
+    "doc": "Connect this interface to another interface by matching named members.",
+    "parent": "Interface"
+  },
+  {
+    "name": "SchLib",
+    "type": "class",
+    "module": "skidl",
+    "signature": "SchLib(filename=None, tool=None, **attribs)",
+    "doc": "Loads and manages a KiCad (or other format) component library. Access parts with bracket notation: lib['555'].",
+    "attributes": ["filename", "tool", "parts"]
+  },
+  {
+    "name": "SchLib.get_parts",
+    "type": "method",
+    "module": "skidl",
+    "signature": "SchLib.get_parts(**criteria)",
+    "doc": "Return parts from the library matching the given attribute criteria.",
+    "parent": "SchLib"
+  },
+  {
+    "name": "generate_netlist",
+    "type": "function",
+    "module": "skidl",
+    "signature": "generate_netlist(file_=None, tool=None, circuit=None)",
+    "doc": "Generate a netlist from the default circuit. Equivalent to circuit.generate_netlist()."
+  },
+  {
+    "name": "generate_pcb",
+    "type": "function",
+    "module": "skidl",
+    "signature": "generate_pcb(file_=None, circuit=None)",
+    "doc": "Generate a PCB layout file from the default circuit."
+  },
+  {
+    "name": "generate_schematic",
+    "type": "function",
+    "module": "skidl",
+    "signature": "generate_schematic(file_=None, circuit=None)",
+    "doc": "Generate a schematic from the default circuit."
+  },
+  {
+    "name": "generate_svg",
+    "type": "function",
+    "module": "skidl",
+    "signature": "generate_svg(file_=None, split_files=False, circuit=None)",
+    "doc": "Generate an SVG schematic preview from the default circuit."
+  },
+  {
+    "name": "generate_xml",
+    "type": "function",
+    "module": "skidl",
+    "signature": "generate_xml(file_=None, circuit=None)",
+    "doc": "Generate an XML netlist from the default circuit."
+  },
+  {
+    "name": "ERC",
+    "type": "function",
+    "module": "skidl",
+    "signature": "ERC(circuit=None)",
+    "doc": "Run Electrical Rules Check on the default circuit. Reports unconnected pins and drive conflicts."
+  },
+  {
+    "name": "erc_assert",
+    "type": "function",
+    "module": "skidl",
+    "signature": "erc_assert(assertion, severity=ERROR, msg='')",
+    "doc": "Assert an ERC condition. Used inside @package or @subcircuit functions to enforce design rules."
+  },
+  {
+    "name": "reset",
+    "type": "function",
+    "module": "skidl",
+    "signature": "reset(circuit=None)",
+    "doc": "Reset the default circuit to an empty state. Call between designs to avoid net/part accumulation."
+  },
+  {
+    "name": "search",
+    "type": "function",
+    "module": "skidl",
+    "signature": "search(term, tool=None)",
+    "doc": "Search for parts in all library search paths matching the given term. Returns matching part names."
+  },
+  {
+    "name": "show",
+    "type": "function",
+    "module": "skidl",
+    "signature": "show(lib, part_name, tool=None)",
+    "doc": "Display a part's pins and attributes from a library."
+  },
+  {
+    "name": "subcircuit",
+    "type": "function",
+    "module": "skidl",
+    "signature": "@subcircuit",
+    "doc": "Decorator that turns a function into a reusable sub-circuit. The function's parts and nets are added to the calling circuit's hierarchy."
+  },
+  {
+    "name": "no_files",
+    "type": "function",
+    "module": "skidl",
+    "signature": "no_files(circuit=None)",
+    "doc": "Prevent generate_* functions from writing output files. Useful for testing."
+  },
+  {
+    "name": "backup_parts",
+    "type": "function",
+    "module": "skidl",
+    "signature": "backup_parts(file_=None, circuit=None)",
+    "doc": "Save a backup of all parts used in the circuit so the design can be reproduced without library access."
+  },
+  {
+    "name": "lib_search_paths",
+    "type": "function",
+    "module": "skidl",
+    "signature": "lib_search_paths(tool=None)",
+    "doc": "Return or set the list of paths searched for component libraries."
+  },
+  {
+    "name": "footprint_search_paths",
+    "type": "function",
+    "module": "skidl",
+    "signature": "footprint_search_paths(tool=None)",
+    "doc": "Return or set the list of paths searched for footprint libraries."
+  },
+  {
+    "name": "netlist_to_skidl",
+    "type": "function",
+    "module": "skidl",
+    "signature": "netlist_to_skidl(netlist_file)",
+    "doc": "Convert an existing netlist file into equivalent SKiDL code."
+  },
+  {
+    "name": "tee",
+    "type": "function",
+    "module": "skidl",
+    "signature": "tee(interface)",
+    "doc": "Create a T-junction between nets in an interface — connects nets together at a branching point."
+  },
+  {
+    "name": "POWER",
+    "type": "constant",
+    "module": "skidl",
+    "signature": "POWER",
+    "doc": "Part class constant for power symbols (VCC, GND, etc.). Use as: Part('power', 'VCC', dest=TEMPLATE)."
+  },
+  {
+    "name": "TEMPLATE",
+    "type": "constant",
+    "module": "skidl",
+    "signature": "TEMPLATE",
+    "doc": "dest=TEMPLATE creates a part template that is not added to the circuit. Use copy() on templates to instantiate."
+  },
+  {
+    "name": "NETLIST",
+    "type": "constant",
+    "module": "skidl",
+    "signature": "NETLIST",
+    "doc": "dest=NETLIST (default) adds the part directly to the circuit when instantiated."
+  },
+  {
+    "name": "Net.__iadd__",
+    "type": "method",
+    "module": "skidl",
+    "signature": "net += pin_or_net",
+    "doc": "Connect pins or nets using the += operator. Equivalent to net.connect(). Example: vcc += r1['A'], u1['VCC']",
+    "parent": "Net"
+  },
+  {
+    "name": "Part.__getitem__",
+    "type": "method",
+    "module": "skidl",
+    "signature": "part['pin_name'] or part[pin_num]",
+    "doc": "Access part pins by name or number. Returns a Pin or list of Pins. Supports slices and comma-separated names.",
+    "parent": "Part"
+  }
+]
