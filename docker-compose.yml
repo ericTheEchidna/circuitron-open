@@ -10,6 +10,13 @@ services:
       - "5434:5432"   # 5433 is taken by the miso memex postgres
     volumes:
       - pgvector_data:/var/lib/postgresql/data
+      # Auto-apply local schema on first startup (only runs when data dir is empty)
+      - ./setup_pgvector_local.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U captain -d circuitron"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
   ollama:
@@ -19,7 +26,32 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
     restart: unless-stopped
+
+  # One-shot service: pulls the embedding model then exits.
+  # mcp-local depends on this completing successfully so it never starts
+  # with a missing model.
+  model-pull:
+    image: ollama/ollama
+    container_name: circuitron-model-pull
+    entrypoint: >
+      sh -c "
+        until curl -sf http://ollama:11434/api/tags; do
+          echo 'waiting for ollama...'; sleep 2;
+        done &&
+        ollama pull nomic-embed-text
+      "
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
 
   mcp-local:
     build:
@@ -29,8 +61,10 @@ services:
     ports:
       - "8051:8051"
     depends_on:
-      - pgvector
-      - ollama
+      pgvector:
+        condition: service_healthy
+      model-pull:
+        condition: service_completed_successfully
     env_file: mcp.env
     restart: unless-stopped
 
