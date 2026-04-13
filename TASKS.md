@@ -86,6 +86,39 @@ POSTGRES_URL=postgresql://captain:memex2026@pgvector:5432/circuitron
 ## Done when
 A user can copy `mcp.env.example` → `mcp.env` and run the stack with zero external API keys, assuming Anthropic key for the main app.
 
+### CIRCUITRON-013 — Rework circuitron setup to populate local backends
+
+
+## Goal
+`circuitron setup` must work end-to-end with only Docker + Ollama. No Supabase, no Neo4j, no OpenAI.
+
+## Subtasks
+- [ ] Update the setup flow in `circuitron/setup.py` (or equivalent) to:
+  - Check pgvector is reachable (via MCP server health endpoint or direct DB ping)
+  - Check Ollama is reachable and `nomic-embed-text` is available
+  - If either is missing, print a clear actionable error and exit
+- [ ] Crawl SKiDL documentation: `https://devbisme.github.io/skidl/`
+  - Fetch pages, chunk text (e.g. 500-token chunks with 50-token overlap)
+  - Embed each chunk via Ollama
+  - Insert into `crawled_pages` table in pgvector
+  - This currently goes through the MCP `smart_crawl_url` tool — either replicate that logic locally or call the new MCP server's internal ingest endpoint
+- [ ] Parse SKiDL source → generate `skidl_kg.json` (calls `scripts/build_kg_index.py`)
+  - Insert skidl_kg.json into the mcp_server/data/ path (mounted volume in Docker)
+- [ ] Parse SKiDL GitHub repo for code examples → embed → insert into `code_examples` table
+- [ ] Make setup idempotent: skip chunks already in DB (check by source URL hash)
+- [ ] Update `/setup` interactive command to call the new flow
+
+## Done when
+Running `circuitron setup` from scratch on a clean environment populates pgvector with SKiDL docs and code examples, and writes `skidl_kg.json`, with no external API keys required.
+
+## Notes
+- Crawling + embedding ~200 SKiDL doc pages locally will take longer than with OpenAI — set user expectations in output
+- The `smart_crawl_url` MCP tool from upstream did recursive crawling with JS rendering; a simpler `requests` + `BeautifulSoup` crawler is sufficient for the static SKiDL docs site
+
+---
+
+## Completed
+
 ### CIRCUITRON-014 — Update docker-compose.yml and remove upstream image dependency
 
 
@@ -123,38 +156,7 @@ A single `docker compose up` starts everything needed: pgvector, Ollama, and the
 - GPU passthrough for Ollama is optional but speeds up embedding significantly — document the nvidia-container-toolkit setup as a tip, not a requirement
 - The `pgvector` service is already defined in docker-compose.yml; just ensure port/credential alignment with `mcp.env.example`
 
-### CIRCUITRON-013 — Rework circuitron setup to populate local backends
-
-
-## Goal
-`circuitron setup` must work end-to-end with only Docker + Ollama. No Supabase, no Neo4j, no OpenAI.
-
-## Subtasks
-- [ ] Update the setup flow in `circuitron/setup.py` (or equivalent) to:
-  - Check pgvector is reachable (via MCP server health endpoint or direct DB ping)
-  - Check Ollama is reachable and `nomic-embed-text` is available
-  - If either is missing, print a clear actionable error and exit
-- [ ] Crawl SKiDL documentation: `https://devbisme.github.io/skidl/`
-  - Fetch pages, chunk text (e.g. 500-token chunks with 50-token overlap)
-  - Embed each chunk via Ollama
-  - Insert into `crawled_pages` table in pgvector
-  - This currently goes through the MCP `smart_crawl_url` tool — either replicate that logic locally or call the new MCP server's internal ingest endpoint
-- [ ] Parse SKiDL source → generate `skidl_kg.json` (calls `scripts/build_kg_index.py`)
-  - Insert skidl_kg.json into the mcp_server/data/ path (mounted volume in Docker)
-- [ ] Parse SKiDL GitHub repo for code examples → embed → insert into `code_examples` table
-- [ ] Make setup idempotent: skip chunks already in DB (check by source URL hash)
-- [ ] Update `/setup` interactive command to call the new flow
-
-## Done when
-Running `circuitron setup` from scratch on a clean environment populates pgvector with SKiDL docs and code examples, and writes `skidl_kg.json`, with no external API keys required.
-
-## Notes
-- Crawling + embedding ~200 SKiDL doc pages locally will take longer than with OpenAI — set user expectations in output
-- The `smart_crawl_url` MCP tool from upstream did recursive crawling with JS rendering; a simpler `requests` + `BeautifulSoup` crawler is sufficient for the static SKiDL docs site
-
----
-
-## Completed
+**Completed:** 2026-04-13
 
 ### CIRCUITRON-012 — Replace Neo4j knowledge graph with static JSON index
 
