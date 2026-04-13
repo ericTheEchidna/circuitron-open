@@ -152,33 +152,6 @@ Running `circuitron setup` from scratch on a clean environment populates pgvecto
 - Crawling + embedding ~200 SKiDL doc pages locally will take longer than with OpenAI — set user expectations in output
 - The `smart_crawl_url` MCP tool from upstream did recursive crawling with JS rendering; a simpler `requests` + `BeautifulSoup` crawler is sufficient for the static SKiDL docs site
 
-### CIRCUITRON-012 — Replace Neo4j knowledge graph with static JSON index
-
-
-## Goal
-Eliminate the Neo4j dependency entirely. The knowledge graph is queried for SKiDL API structure (class names, method signatures, attributes). A static JSON index built from the SKiDL source at setup time covers all these queries without a graph database.
-
-## Subtasks
-- [ ] Write `scripts/build_kg_index.py`: parse SKiDL source tree (clone or use installed package) using `ast` module
-  - Extract: module → class → methods/attributes with signatures and docstrings
-  - Output: `mcp_server/data/skidl_kg.json`
-- [ ] Implement `query_knowledge_graph(query: str) -> dict` in `mcp_server/tools/kg.py`
-  - Load `skidl_kg.json` into memory on first call (singleton)
-  - Simple keyword + fuzzy search over class/method names (use `difflib` or `rapidfuzz`)
-  - Return matching class/method entries with signatures and docstrings
-- [ ] Fallback: if the index is missing, return an empty result with a warning (don't crash)
-- [ ] Wire tool into MCP JSON-RPC dispatcher
-- [ ] Add index generation to `circuitron setup` flow
-- [ ] Remove all `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` references from `mcp.env.example`, README, SETUP.md
-
-## Done when
-`query_knowledge_graph("Net")` returns the `Net` class definition, constructor signature, and key methods from the index without any network calls.
-
-## Notes
-- The JSON index will be small (~1-2 MB for SKiDL) and can be bundled with the repo as a pre-built artifact, so users don't need to regenerate it unless SKiDL is updated
-- If fuzzy keyword search proves insufficient, fall through to `perform_rag_query` as a secondary lookup
-- The upstream Neo4j graph also stored repository/file structure — that metadata can live in the JSON index too
-
 ### CIRCUITRON-011 — Implement perform_rag_query and search_code_examples tools
 
 **Priority:** high
@@ -208,6 +181,39 @@ Calling `perform_rag_query` via the MCP protocol returns relevant SKiDL doc chun
 - Reranking with a local LLM is optional but improves quality significantly — worth implementing behind a flag
 - Match the exact JSON response shape the agents expect (check `circuitron/prompts.py` for how results are used)
 
+---
+
+## Completed
+
+### CIRCUITRON-012 — Replace Neo4j knowledge graph with static JSON index
+
+
+## Goal
+Eliminate the Neo4j dependency entirely. The knowledge graph is queried for SKiDL API structure (class names, method signatures, attributes). A static JSON index built from the SKiDL source at setup time covers all these queries without a graph database.
+
+## Subtasks
+- [ ] Write `scripts/build_kg_index.py`: parse SKiDL source tree (clone or use installed package) using `ast` module
+  - Extract: module → class → methods/attributes with signatures and docstrings
+  - Output: `mcp_server/data/skidl_kg.json`
+- [ ] Implement `query_knowledge_graph(query: str) -> dict` in `mcp_server/tools/kg.py`
+  - Load `skidl_kg.json` into memory on first call (singleton)
+  - Simple keyword + fuzzy search over class/method names (use `difflib` or `rapidfuzz`)
+  - Return matching class/method entries with signatures and docstrings
+- [ ] Fallback: if the index is missing, return an empty result with a warning (don't crash)
+- [ ] Wire tool into MCP JSON-RPC dispatcher
+- [ ] Add index generation to `circuitron setup` flow
+- [ ] Remove all `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` references from `mcp.env.example`, README, SETUP.md
+
+## Done when
+`query_knowledge_graph("Net")` returns the `Net` class definition, constructor signature, and key methods from the index without any network calls.
+
+## Notes
+- The JSON index will be small (~1-2 MB for SKiDL) and can be bundled with the repo as a pre-built artifact, so users don't need to regenerate it unless SKiDL is updated
+- If fuzzy keyword search proves insufficient, fall through to `perform_rag_query` as a secondary lookup
+- The upstream Neo4j graph also stored repository/file structure — that metadata can live in the JSON index too
+
+**Completed:** 2026-04-13
+
 ### CIRCUITRON-010 — Implement Ollama embedding backend
 
 **Priority:** high
@@ -233,9 +239,7 @@ Embedding a short string returns a 768-element float list with no external API c
 - If Ollama is running on the host (not in Docker), use `host.docker.internal` for the URL inside Docker
 - Consider `mxbai-embed-large` (1024d) as a higher-quality alternative — requires schema change
 
----
-
-## Completed
+**Completed:** 2026-04-13
 
 ### CIRCUITRON-00F — Integrate pgvector as the vector store backend
 
