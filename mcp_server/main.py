@@ -31,6 +31,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Mount, Route
 
+from .embeddings import check_ollama
 from .tools.rag import perform_rag_query, search_code_examples
 from .tools.kg import query_knowledge_graph
 
@@ -160,7 +161,18 @@ async def handle_sse(request: Request) -> Response:
     return Response()
 
 
+@asynccontextmanager
+async def lifespan(_app: Starlette):  # type: ignore[type-arg]
+    try:
+        await check_ollama()
+    except RuntimeError as exc:
+        log.error("Startup check failed: %s", exc)
+        raise
+    yield
+
+
 app = Starlette(
+    lifespan=lifespan,
     routes=[
         Route("/sse", endpoint=handle_sse),
         Mount("/messages/", app=transport.handle_post_message),
@@ -171,6 +183,7 @@ app = Starlette(
 # ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
+
 
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
