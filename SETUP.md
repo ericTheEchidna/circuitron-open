@@ -2,7 +2,7 @@
 
 This is a dedicated guide to getting the dependencies for the project set up.
 
-Tip: After you configure and start the MCP server (Supabase + Neo4j credentials in `mcp.env`), you can initialize Circuitron’s knowledge bases directly via the built-in command:
+Tip: After you configure and start the MCP server (see [Option A](#option-a-local-postgres-pgvector) for local pgvector or [Option B](#option-b-supabase-cloud) for Supabase cloud), you can initialize Circuitron’s knowledge bases directly via the built-in command:
 
 ```bash
 circuitron setup
@@ -14,6 +14,8 @@ This is idempotent and should be run once per environment. It uses the MCP tools
 
 1. [Docker Setup](#docker-setup)
 2. [MCP Server Setup](#mcp-server-setup)
+   - [Option A: Local Postgres (pgvector) — no Supabase account](#option-a-local-postgres-pgvector)
+   - [Option B: Supabase cloud](#option-b-supabase-cloud)
 3. [Setting up AI Assistant for Knowledge Base Population](#setting-up-ai-assistant-for-knowledge-base-population)
 4. [Populating Knowledge Bases](#populating-knowledge-bases)
 5. [Additional Notes on OpenAI API](#additional-notes-on-openai-api)
@@ -42,7 +44,102 @@ npm install https://github.com/nturley/netlistsvg
 
 ## MCP Server Setup
 
-Next, you'll need to follow the following steps to set up the MCP server:
+There are two ways to provide the vector store for the MCP server. Choose one.
+
+---
+
+### Option A: Local Postgres (pgvector)
+
+Use this if you already run PostgreSQL (e.g. on a home server) and want to avoid
+creating a Supabase account.
+
+**Prerequisites**
+
+- PostgreSQL 14+ with the [pgvector](https://github.com/pgvector/pgvector) extension.
+  On Ubuntu/Debian: `sudo apt install postgresql-<ver>-pgvector`
+- The `circuitron-mcp-local` Docker image (built below).
+
+**Step A1 — Create the database and schema**
+
+```bash
+# Create a database (if it doesn't exist yet)
+psql -U postgres -c "CREATE DATABASE circuitron;"
+
+# Apply the schema (creates tables + vector search functions, no Supabase required)
+psql -U postgres -d circuitron -f setup_pgvector_local.sql
+```
+
+**Step A2 — Build the patched MCP image**
+
+The upstream `circuitron-mcp` image uses the Supabase Python client exclusively.
+A minimal patch in `mcp/utils_local.py` adds a psycopg2 adapter that activates
+when `DATABASE_URL` is set. Build it once:
+
+```bash
+docker build -t circuitron-mcp-local ./mcp
+```
+
+**Step A3 — Create `mcp.env`**
+
+Copy `mcp.env.example` to `mcp.env` and fill in the `DATABASE_URL` block:
+
+```env
+TRANSPORT=sse
+HOST=0.0.0.0
+PORT=8051
+OPENAI_API_KEY=<your OpenAI API key>
+MODEL_CHOICE=gpt-5-nano
+USE_CONTEXTUAL_EMBEDDINGS=true
+USE_HYBRID_SEARCH=true
+USE_AGENTIC_RAG=true
+USE_RERANKING=true
+USE_KNOWLEDGE_GRAPH=true
+LLM_MAX_CONCURRENCY=2
+LLM_REQUEST_DELAY=0.5
+
+# Local Postgres — uncomment and fill in:
+DATABASE_URL=postgresql://<user>:<password>@<host>:5432/circuitron
+
+# Neo4j (local or cloud):
+NEO4J_URI=bolt://host.docker.internal:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=<your Neo4j password>
+```
+
+**Step A4 — Run the patched server**
+
+```bash
+docker run --env-file mcp.env -p 8051:8051 circuitron-mcp-local
+```
+
+Then run `circuitron setup` (or type `/setup` in the UI) to populate the knowledge
+bases. No Supabase credentials are needed.
+
+> **Embedding dimensions:** The default embedding model is OpenAI `text-embedding-3-small`
+> (1536 dimensions). If you switch to a local Ollama model, you **must** update the
+> `vector(1536)` column definitions in `setup_pgvector_local.sql` to match the model's
+> dimension before running the schema, then set `EMBEDDING_DIMENSIONS` in `mcp.env`:
+>
+> | Model | Dimensions |
+> |---|---|
+> | `nomic-embed-text` | 768 |
+> | `mxbai-embed-large` | 1024 |
+> | `all-minilm` | 384 |
+> | `bge-m3` | 1024 |
+>
+> Changing dimensions requires dropping and recreating all vector tables and
+> re-running `circuitron setup`. See `mcp.env.local.example` for the full config.
+
+> **Note on USE_KNOWLEDGE_GRAPH**: the knowledge graph feature still requires Neo4j.
+> For a fully local stack, run Neo4j locally and set
+> `NEO4J_URI=bolt://host.docker.internal:7687`. To disable the knowledge graph
+> entirely, set `USE_KNOWLEDGE_GRAPH=false` in `mcp.env`.
+
+---
+
+### Option B: Supabase cloud
+
+Use this if you prefer a managed cloud setup.
 
 ### Step 1: Get API credentials for the MCP server
 
@@ -126,6 +223,8 @@ INFO: Uvicorn running on http://0.0.0.0:8051⁠ (Press CTRL+C to quit)
 INFO: 172.17.0.1:48912 - "GET /sse HTTP/1.1" 200 OK
 ```
 
+---
+
 ## Setting up AI Assistant for Knowledge Base Population (Optional in case `/setup` does not work)
 
 Now let's add this mcp server to your favourite coding agent so it can assist you with setting up the knowledge bases for circuitron.
@@ -193,6 +292,63 @@ Refresh procedure (clean rebuild):
 
 Important: Always delete the existing SKiDL knowledge base contents before repopulating to avoid mixing old and new documentation.
 
+## Local Neo4j (Docker Compose)
+
+If you are using the local pgvector path (Option A) or simply want to avoid a
+cloud Neo4j account, you can run Neo4j locally with Docker Compose.
+
+**Step 1 — Start Neo4j**
+
+```bash
+docker compose up -d neo4j
+```
+
+This starts Neo4j 5 Community Edition on the standard ports:
+
+| Port | Purpose |
+|------|---------|
+| 7687 | Bolt (driver/tool connections) |
+| 7474 | Neo4j Browser (web UI) |
+
+Data is persisted in a named Docker volume (`neo4j_data`).
+
+**Step 2 — Configure credentials in `mcp.env`**
+
+```env
+NEO4J_URI=bolt://host.docker.internal:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=circuitron   # matches NEO4J_PASSWORD in .env (default: circuitron)
+```
+
+`host.docker.internal` resolves to the host from inside a Docker container.  If
+running the MCP server outside Docker, use `bolt://localhost:7687` instead.
+
+**Step 3 — Add `NEO4J_URI` to `.env`**
+
+Circuitron checks Neo4j reachability at startup (when `NEO4J_URI` is set).  Add
+it to your `.env` so the check runs:
+
+```env
+NEO4J_URI=bolt://localhost:7687
+```
+
+**Step 4 — Populate the knowledge graph**
+
+```bash
+circuitron setup
+```
+
+This calls the MCP `parse_github_repository` tool to populate the local Neo4j
+instance with the SKiDL knowledge graph.
+
+**Opting out of the knowledge graph**
+
+Set `USE_KNOWLEDGE_GRAPH=false` in `mcp.env` and omit `NEO4J_URI` from `.env`.
+The RAG documentation corpus will still work; only the graph-based validation
+features will be disabled.
+
+---
+
 ## Additional Notes on LLM Provider Configuration
 
 ### Using Anthropic Claude (no OpenAI required for the main app)
@@ -222,6 +378,26 @@ Enabling data sharing on OpenAI's platform grants additional free daily usage an
 ---
 
 Hope this helps you get started with circuitron-open! If you have any questions or run into issues, feel free to open an issue on the GitHub repository.
+
+## Memex electronics knowledge base (optional)
+
+If you run [memex](https://github.com/erictheechidna/memex) with an electronics
+collection (datasheets, application notes), Circuitron can query it during planning,
+part selection, and code generation.
+
+Set `MEMEX_API_URL` in `.env`:
+
+```env
+MEMEX_API_URL=http://miso:8002
+```
+
+When this variable is set, the planner, part-finder, and code-generation agents
+gain a `retrieve_electronics_knowledge` tool that queries
+`GET {MEMEX_API_URL}/search?q=...&project=kicad&n=5` and formats the top results
+as markdown context.  The tool silently returns nothing if memex is unreachable —
+it is never a hard dependency and does not require `circuitron setup` to work.
+
+---
 
 ## Pricing and Cost Estimation
 

@@ -49,6 +49,9 @@ class Settings:
     mcp_url: str = field(
         default_factory=lambda: os.getenv("MCP_URL", "http://localhost:8051")
     )
+    memex_api_url: str = field(
+        default_factory=lambda: os.getenv("MEMEX_API_URL", "")
+    )
     max_turns: int = field(
         default_factory=lambda: int(os.getenv("CIRCUITRON_MAX_TURNS", "50"))
     )
@@ -57,6 +60,12 @@ class Settings:
     )
     provider: str = field(
         default_factory=lambda: os.getenv("CIRCUITRON_PROVIDER", "openai-agents")
+    )
+    ollama_base_url: str = field(
+        default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    )
+    available_providers: list[str] = field(
+        default_factory=lambda: ["openai-agents", "anthropic", "ollama"]
     )
     dev_mode: bool = False
     footprint_search_enabled: bool = True

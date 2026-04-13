@@ -46,9 +46,9 @@ class LLMProvider(Protocol):
         self,
         name: str,
         instructions: str,
-        tools: list[Any],
-        output_type: type[Any],
-        model: str,
+        tools: list[Any] | None = None,
+        output_type: type[Any] = object,
+        model: str = "",
         **kwargs: Any,
     ) -> AgentHandle:
         """Create and return a provider-wrapped agent.

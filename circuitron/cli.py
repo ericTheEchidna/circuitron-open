@@ -9,7 +9,7 @@ from .config import setup_environment, settings
 from .models import CodeGenerationOutput
 from circuitron.tools import kicad_session
 from .mcp_manager import mcp_manager
-from .network import check_internet_connection, verify_mcp_server
+from .network import check_internet_connection, verify_mcp_server, verify_neo4j
 from .exceptions import PipelineError
 from circuitron.ui.app import TerminalUI
 
@@ -120,6 +120,8 @@ def main() -> None:
             # Do not start KiCad containers; this path only uses MCP tools
             if not verify_mcp_server(ui=ui):
                 return
+            if not verify_neo4j(ui=ui):
+                return
             try:
                 _ = asyncio.run(
                     run_setup(
@@ -144,8 +146,11 @@ def main() -> None:
     if not check_internet_connection():
         return
 
-    # Verify MCP server before starting pipeline
+    # Verify MCP server and optional Neo4j before starting pipeline
     if not verify_mcp_server(ui=ui):
+        return
+
+    if not verify_neo4j(ui=ui):
         return
 
     if not verify_containers(ui=ui):

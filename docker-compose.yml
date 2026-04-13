@@ -16,3 +16,9 @@ services:
       # pointing at the miso pgvector both work without a custom network.
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+
+# ── Notes on the KiCad container ───────────────────────────────────────────
+# The KiCad image (ghcr.io/shaurya-sethi/circuitron-kicad:latest) is managed
+# directly by Circuitron via the Docker SDK — it is started and stopped per
+# design run, not as a persistent compose service.  Pull it once with:
+#   docker pull ghcr.io/shaurya-sethi/circuitron-kicad:latest
