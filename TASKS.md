@@ -152,35 +152,6 @@ Running `circuitron setup` from scratch on a clean environment populates pgvecto
 - Crawling + embedding ~200 SKiDL doc pages locally will take longer than with OpenAI — set user expectations in output
 - The `smart_crawl_url` MCP tool from upstream did recursive crawling with JS rendering; a simpler `requests` + `BeautifulSoup` crawler is sufficient for the static SKiDL docs site
 
-### CIRCUITRON-011 — Implement perform_rag_query and search_code_examples tools
-
-**Priority:** high
-
-## Goal
-The two most critical MCP tools the agents call. Both follow the same pattern: embed the query → vector search pgvector → return ranked chunks.
-
-## Subtasks
-- [ ] Implement `perform_rag_query(query: str, top_k: int = 5) -> list[dict]` in `mcp_server/tools/rag.py`
-  - Embed query with Ollama
-  - Call `match_crawled_pages()` in pgvector
-  - Return `[{content, url, similarity}, ...]`
-- [ ] Implement `search_code_examples(query: str, top_k: int = 5) -> list[dict]`
-  - Embed query with Ollama
-  - Call `match_code_examples()` in pgvector
-  - Return `[{code, description, similarity}, ...]`
-- [ ] Optional: add Ollama LLM reranking pass (controlled by `USE_RERANKING=true` env var)
-  - If enabled: send top-k chunks + query to `LLM_MODEL` with a reranking prompt, return reordered list
-  - If disabled: return vector similarity order as-is
-- [ ] Wire both tools into the MCP JSON-RPC dispatcher
-- [ ] Write unit tests with a mock pgvector connection
-
-## Done when
-Calling `perform_rag_query` via the MCP protocol returns relevant SKiDL doc chunks after the knowledge base has been populated. `search_code_examples` returns working SKiDL snippets.
-
-## Notes
-- Reranking with a local LLM is optional but improves quality significantly — worth implementing behind a flag
-- Match the exact JSON response shape the agents expect (check `circuitron/prompts.py` for how results are used)
-
 ---
 
 ## Completed
@@ -211,6 +182,37 @@ Eliminate the Neo4j dependency entirely. The knowledge graph is queried for SKiD
 - The JSON index will be small (~1-2 MB for SKiDL) and can be bundled with the repo as a pre-built artifact, so users don't need to regenerate it unless SKiDL is updated
 - If fuzzy keyword search proves insufficient, fall through to `perform_rag_query` as a secondary lookup
 - The upstream Neo4j graph also stored repository/file structure — that metadata can live in the JSON index too
+
+**Completed:** 2026-04-13
+
+### CIRCUITRON-011 — Implement perform_rag_query and search_code_examples tools
+
+**Priority:** high
+
+## Goal
+The two most critical MCP tools the agents call. Both follow the same pattern: embed the query → vector search pgvector → return ranked chunks.
+
+## Subtasks
+- [ ] Implement `perform_rag_query(query: str, top_k: int = 5) -> list[dict]` in `mcp_server/tools/rag.py`
+  - Embed query with Ollama
+  - Call `match_crawled_pages()` in pgvector
+  - Return `[{content, url, similarity}, ...]`
+- [ ] Implement `search_code_examples(query: str, top_k: int = 5) -> list[dict]`
+  - Embed query with Ollama
+  - Call `match_code_examples()` in pgvector
+  - Return `[{code, description, similarity}, ...]`
+- [ ] Optional: add Ollama LLM reranking pass (controlled by `USE_RERANKING=true` env var)
+  - If enabled: send top-k chunks + query to `LLM_MODEL` with a reranking prompt, return reordered list
+  - If disabled: return vector similarity order as-is
+- [ ] Wire both tools into the MCP JSON-RPC dispatcher
+- [ ] Write unit tests with a mock pgvector connection
+
+## Done when
+Calling `perform_rag_query` via the MCP protocol returns relevant SKiDL doc chunks after the knowledge base has been populated. `search_code_examples` returns working SKiDL snippets.
+
+## Notes
+- Reranking with a local LLM is optional but improves quality significantly — worth implementing behind a flag
+- Match the exact JSON response shape the agents expect (check `circuitron/prompts.py` for how results are used)
 
 **Completed:** 2026-04-13
 
