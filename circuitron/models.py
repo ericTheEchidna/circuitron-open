@@ -383,23 +383,23 @@ class RuntimeErrorCorrectionOutput(BaseModel):
     )
 
 
-# ===== Setup Agent Models =====
+# ===== Setup Models =====
 class SetupOutput(BaseModel):
-    """Output from the Setup Agent that initializes knowledge bases.
+    """Output from the setup command that initializes local knowledge bases.
 
-    Captures the result of running MCP tools to populate Supabase
-    (documentation corpus) and Neo4j (knowledge graph).
+    Captures the result of crawling SKiDL docs into pgvector and confirming
+    the static knowledge graph index is in place.
     """
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
     docs_url: str = Field(description="Documentation root URL that was crawled")
-    repo_url: str = Field(description="Git repository URL that was parsed for the graph")
-    supabase_status: Literal["created", "updated", "skipped", "error"] = Field(
-        description="Outcome for Supabase doc corpus population"
+    repo_url: str = Field(description="Git repository URL (used as source reference)")
+    pgvector_status: Literal["created", "updated", "skipped", "error"] = Field(
+        description="Outcome for pgvector doc corpus population"
     )
-    neo4j_status: Literal["created", "updated", "skipped", "error"] = Field(
-        description="Outcome for Neo4j knowledge graph population"
+    kg_status: Literal["present", "missing", "error"] = Field(
+        description="Status of the static SKiDL knowledge graph index"
     )
     operations: List[str] = Field(
         default_factory=list, description="Chronological log of actions performed"
