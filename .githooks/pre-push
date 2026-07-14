@@ -1,0 +1,22 @@
+#!/bin/bash
+# Rebases the current branch onto the remote tip before allowing a push.
+set -euo pipefail
+
+remote="$1"
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null) || exit 0
+git fetch "$remote" "$branch" --quiet 2>/dev/null || exit 0
+
+behind=$(git rev-list --count "HEAD..$remote/$branch" 2>/dev/null || echo 0)
+if [ "$behind" -gt 0 ]; then
+    echo "pre-push: $branch is $behind commit(s) behind $remote/$branch — rebasing" >&2
+    if ! git rebase "$remote/$branch" -q; then
+        echo "pre-push: rebase hit a conflict — resolve manually, then retry push" >&2
+        exit 1
+    fi
+    # git computes what to send before this hook runs, so rewriting the
+    # branch here can't let the same push continue — abort and ask for a retry.
+    echo "pre-push: rebased cleanly — re-run git push to continue" >&2
+    exit 1
+fi
+exit 0
