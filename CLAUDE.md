@@ -21,11 +21,11 @@ curl 'http://miso:8002/tasks?project=circuitron&status=open'
 # Get a task
 curl http://miso:8002/tasks/CIRCUITRON-001
 
-# Mark in progress — get user approval first
+# Mark in progress — no approval needed
 curl -X PATCH http://miso:8002/tasks/CIRCUITRON-001 \
   -H 'Content-Type: application/json' -d '{"status":"in_progress"}'
 
-# Mark done
+# Mark done — get user approval first
 curl -X PATCH http://miso:8002/tasks/CIRCUITRON-001 \
   -H 'Content-Type: application/json' -d '{"status":"done"}'
 
@@ -43,8 +43,9 @@ curl -X POST http://miso:8002/tasks \
 - **Explain non-obvious choices** before running commands (1–2 sentences on what and why).
 - **Flag scope creep** — something broken outside the current task? Create a new task; do not fix inline.
 - **One task at a time.** Finish or pause before starting another.
-- **Get explicit approval** before changing task status (in_progress, done, cancelled).
-- **Never commit or push** without explicit user confirmation.
+- **Set a task `in_progress`** when you start it — no approval needed.
+- **Get explicit approval** before marking a task `done` or `cancelled`.
+- **Commit without asking** — state what and why. **Never push** without explicit user confirmation.
 
 ---
 
@@ -62,5 +63,4 @@ curl -X POST http://miso:8002/tasks \
 
 | File | Purpose |
 |------|---------|
-| `TASKS.md` | Current task list (auto-generated — do not hand-edit) |
 | `PROJECT.md` | Repo-specific context: architecture, conventions, gotchas |
